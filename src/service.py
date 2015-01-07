@@ -11,6 +11,7 @@ import os
 import signal
 import socket
 import sys
+import threading
 import time
 
 from daemon import DaemonContext
@@ -203,7 +204,18 @@ class Service(object):
                         signal.SIGTSTP: None,
                         signal.SIGTERM: terminator,
                     }):
-                self.run()
+                # Python's signal handling mechanism only forwards signals to
+                # the main thread and only when that thread is doing something
+                # (e.g. not when it's waiting for a lock, etc.). If we use the
+                # main thread for the ``run`` method this means that we cannot
+                # use the synchronization devices from ``threading`` for the
+                # communication between ``run`` and ``on_terminate``. Hence we
+                # use a separate thread for ``run`` and make sure that the
+                # main loop receives signals.
+                thread = threading.Thread(target=self.run)
+                thread.start()
+                while thread.is_alive():
+                    time.sleep(1)
         except Exception as e:
             self.logger.exception(e)
         finally:
@@ -231,8 +243,7 @@ class Service(object):
 
         The daemon may also be terminated by sending it the SIGTERM
         signal. In that case ``on_terminate`` will be called and should
-        make the loop in ``run`` terminate (for example via one of the
-        communication methods provided by the ``threading`` module).
+        make the loop in ``run`` terminate.
         """
         pass
 
