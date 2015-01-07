@@ -146,5 +146,5 @@ class TestService(object):
         """
         service = start(TimedService(0.2, 1))
         service.stop()  # Activates ``on_terminate``
-        time.sleep(0.1)  # ``run`` has now finished
+        time.sleep(0.3)  # ``run`` has now finished
         assert_running()
