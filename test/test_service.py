@@ -4,7 +4,6 @@
 Tests for the ``service`` module.
 """
 
-import logging
 import threading
 import time
 
@@ -56,12 +55,16 @@ class TimedService(BasicService):
     """
     Test service that runs for a certain amount of time.
     """
-    def __init__(self, duration):
+    def __init__(self, run=0, on_terminate=0):
         super(TimedService, self).__init__()
-        self.duration = duration
+        self.run_duration = run
+        self.on_terminate_duration = on_terminate
 
     def run(self):
-        time.sleep(self.duration)
+        time.sleep(self.run_duration)
+
+    def on_terminate(self):
+        time.sleep(self.on_terminate_duration)
 
 
 class WaitingService(BasicService):
@@ -137,3 +140,11 @@ class TestService(object):
         service.kill()
         assert_not_running()
 
+    def test_long_on_terminate(self):
+        """
+        Test a long duration of ``on_terminate``.
+        """
+        service = start(TimedService(0.2, 1))
+        service.stop()  # Activates ``on_terminate``
+        time.sleep(0.1)  # ``run`` has now finished
+        assert_running()
