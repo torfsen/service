@@ -29,12 +29,22 @@ import sys
 
 import nose
 
+
 _ROOT_DIR = os.path.dirname(__file__)
 _SRC_DIR = os.path.join(_ROOT_DIR, 'src')
 sys.path.insert(0, _SRC_DIR)
 
+_HTML_DIR = os.path.join(_ROOT_DIR, 'coverage')
 
-argv = sys.argv[:]
-argv.insert(1, '--nocapture')  # Messing with STDIN and STDOUT causes problems
-                               # with the ``daemon`` module.
-nose.main(argv=argv)
+args = [
+        '--nocapture',  # Messing with STDIN and STDOUT causes problems
+                        # with the ``daemon`` module.
+        '--with-coverage',
+        '--cover-branches',
+        '--cover-erase',
+        '--cover-package', 'service',
+        '--cover-html',
+        '--cover-html-dir', _HTML_DIR,
+       ]
+args = [sys.argv[0]] + args + sys.argv[1:]
+nose.main(argv=args)

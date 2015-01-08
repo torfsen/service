@@ -7,7 +7,7 @@ Tests for the ``service`` module.
 import threading
 import time
 
-from nose.tools import ok_ as ok
+from nose.tools import ok_ as ok, raises
 import psutil
 
 from service import Service
@@ -133,7 +133,7 @@ class TestService(object):
 
     def test_kill(self):
         """
-        Test ``service.kill``.
+        Test ``Service.kill``.
         """
         start(ForeverService()).kill()
         assert_not_running()
@@ -153,3 +153,32 @@ class TestService(object):
         start(ForeverService()).kill()
         start(ForeverService())
 
+    @raises(ValueError)
+    def test_stop_not_running(self):
+        """
+        Test stopping a service that is not running.
+        """
+        TimedService().stop()
+
+    @raises(ValueError)
+    def test_kill_not_running(self):
+        """
+        Test killing a service that is not running.
+        """
+        TimedService().kill()
+
+    @raises(ValueError)
+    def test_start_already_running(self):
+        """
+        Test starting a service that is already running.
+        """
+        start(TimedService(1)).start()
+
+    def test_is_running(self):
+        """
+        Test ``Service.is_running``.
+        """
+        service = TimedService(1)
+        ok(not service.is_running())
+        start(service)
+        ok(service.is_running())

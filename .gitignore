@@ -1,4 +1,6 @@
-venv/
+/venv/
+/coverage/
+/.coverage
 
 *.swp
 *.pyc
