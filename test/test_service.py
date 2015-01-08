@@ -127,8 +127,7 @@ class TestService(object):
         """
         Test ``Service.stop``.
         """
-        service = start(WaitingService())
-        service.stop()
+        start(WaitingService()).stop()
         time.sleep(0.1)
         assert_not_running()
 
@@ -136,15 +135,21 @@ class TestService(object):
         """
         Test ``service.kill``.
         """
-        service = start(ForeverService())
-        service.kill()
+        start(ForeverService()).kill()
         assert_not_running()
 
     def test_long_on_terminate(self):
         """
         Test a long duration of ``on_terminate``.
         """
-        service = start(TimedService(0.2, 1))
-        service.stop()  # Activates ``on_terminate``
-        time.sleep(0.3)  # ``run`` has now finished
+        start(TimedService(0.2, 1)).stop()
+        time.sleep(0.3)
         assert_running()
+
+    def test_kill_removes_pid_file(self):
+        """
+        Test that ``kill`` removes the PID file.
+        """
+        start(ForeverService()).kill()
+        start(ForeverService())
+
