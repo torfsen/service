@@ -27,6 +27,7 @@ Tests for the ``service`` module.
 import threading
 import time
 
+import lockfile
 from nose.tools import ok_ as ok, raises
 import psutil
 
@@ -202,3 +203,11 @@ class TestService(object):
         ok(not service.is_running())
         start(service)
         ok(service.is_running())
+
+    @raises(lockfile.LockFailed)
+    def test_no_lock_permissions(self):
+        """
+        Test starting a service without necessary permissions.
+        """
+        Service(_NAME).start()
+

@@ -212,6 +212,17 @@ class Service(object):
         if pid:
             raise ValueError('Daemon is already running at PID %d.' % pid)
 
+        # The default is to place the PID file into ``/var/run``. This
+        # requires root privileges. Since not having these is a common
+        # problem we check a priori whether we can create the lock file.
+        try:
+            self.pid_file.acquire(timeout=0)
+        finally:
+            try:
+                self.pid_file.release()
+            except lockfile.NotLocked:
+                pass
+
         if _detach_process():
             # Calling process returns
             return
