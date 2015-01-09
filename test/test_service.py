@@ -75,16 +75,16 @@ class TimedService(BasicService):
     """
     Test service that runs for a certain amount of time.
     """
-    def __init__(self, run=0, on_terminate=0):
+    def __init__(self, run=0, on_stop=0):
         super(TimedService, self).__init__()
         self.run_duration = run
-        self.on_terminate_duration = on_terminate
+        self.on_stop_duration = on_stop
 
     def run(self):
         time.sleep(self.run_duration)
 
-    def on_terminate(self):
-        time.sleep(self.on_terminate_duration)
+    def on_stop(self):
+        time.sleep(self.on_stop_duration)
 
 
 class WaitingService(BasicService):
@@ -98,7 +98,7 @@ class WaitingService(BasicService):
     def run(self):
         self.event.wait()
 
-    def on_terminate(self):
+    def on_stop(self):
         self.event.set()
 
 
@@ -110,7 +110,7 @@ class ForeverService(BasicService):
         while True:
             time.sleep(1)
 
-    on_terminate = run
+    on_stop = run
 
 
 def start(service):
@@ -158,9 +158,9 @@ class TestService(object):
         start(ForeverService()).kill()
         assert_not_running()
 
-    def test_long_on_terminate(self):
+    def test_long_on_stop(self):
         """
-        Test a long duration of ``on_terminate``.
+        Test a long duration of ``on_stop``.
         """
         start(TimedService(0.2, 1)).stop()
         time.sleep(0.3)

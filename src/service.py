@@ -127,11 +127,11 @@ class Service(object):
 
     Subclasses usually do not need to override any of these.
 
-    The daemon methods are ``run`` and ``on_terminate``. Subclasses
-    should at least override the ``run`` method to provide the major
-    daemon functionality. You may also want to provide a custom
-    implementation of ``on_terminate`` which is called when the daemon
-    receives a SIGTERM signal (for example after ``stop`` was called).
+    The daemon methods are ``run`` and ``on_stop``. Subclasses should
+    at least override the ``run`` method to provide the major daemon
+    functionality. You may also want to provide a custom implementation
+    of ``on_stop`` which is called when the daemon receives a SIGTERM
+    signal (for example after ``stop`` was called).
 
     The daemon can use its ``logger`` attribute to log messages to
     syslog. Uncaught exceptions that occur while the daemon is running
@@ -220,7 +220,7 @@ class Service(object):
 
         def terminator(signum, frame):
             try:
-                self.on_terminate()
+                self.on_stop()
             except Exception as e:
                 self.logger.exception(e)
             sys.exit()
@@ -240,9 +240,9 @@ class Service(object):
                 # (e.g. not when it's waiting for a lock, etc.). If we use the
                 # main thread for the ``run`` method this means that we cannot
                 # use the synchronization devices from ``threading`` for the
-                # communication between ``run`` and ``on_terminate``. Hence we
-                # use a separate thread for ``run`` and make sure that the
-                # main loop receives signals.
+                # communication between ``run`` and ``on_stop``. Hence we use
+                # a separate thread for ``run`` and make sure that the main
+                # loop receives signals.
                 thread = threading.Thread(target=self.run)
                 thread.start()
                 while thread.is_alive():
@@ -273,12 +273,12 @@ class Service(object):
         Typical implementations therefore contain some kind of loop.
 
         The daemon may also be terminated by sending it the SIGTERM
-        signal. In that case ``on_terminate`` will be called and should
-        make the loop in ``run`` terminate.
+        signal. In that case ``on_stop`` will be called and should make
+        the loop in ``run`` terminate.
         """
         pass
 
-    def on_terminate(self):
+    def on_stop(self):
         """
         Called when daemon receives signal to terminate.
 
