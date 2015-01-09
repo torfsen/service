@@ -1,5 +1,9 @@
 /venv/
 /coverage/
+/dist/
+/src/service.egg-info/
+/build/
+
 /.coverage
 
 *.swp

@@ -27,10 +27,11 @@ This module makes it easy to write Unix services, i.e. background
 processes ("daemons") that are controlled by a foreground application
 (e.g. a console script).
 
-The module is built around the python-daemon_ module, which provides the
-means for creating well-behaved daemon processes. The ``service`` module
-adds a control infrastructure for easily starting, stopping, querying
-and killing the background process from a foreground application.
+The package is built around the python-daemon_ module, which provides
+the means for creating well-behaved daemon processes. The ``service``
+package adds a control infrastructure for easily starting, stopping,
+querying and killing the background process from a foreground
+application.
 
 .. _python-daemon: https://pypi.python.org/pypi/python-daemon
 """
