@@ -15,7 +15,7 @@ application (e.g. a console script)::
         import sys
 
         if len(sys.argv) != 2:
-            sys.exit('Syntax: %s COMMAND\n' % sys.argv[0])
+            sys.exit('Syntax: %s COMMAND' % sys.argv[0])
 
         cmd = sys.argv[1].lower()
         service = MyService('my_service', pid_dir='/tmp')
@@ -39,3 +39,11 @@ the background process from a foreground application.
 
 .. _python-daemon: https://pypi.python.org/pypi/python-daemon
 
+
+Installation
+============
+Installation is easy via pip_::
+
+    pip install service
+
+.. _pip: https://pip.pypa.io/en/latest/index.html
