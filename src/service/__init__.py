@@ -38,7 +38,7 @@ application.
 
 import errno
 import logging
-import logging.handlers
+from logging.handlers import SysLogHandler
 import os
 import signal
 import socket
@@ -106,6 +106,7 @@ class _PIDFile(lockfile.pidlockfile.PIDLockFile):
         return lockfile.pidlockfile.PIDLockFile.acquire(self, *args, **kwargs)
 
 
+
 class Service(object):
     """
     A background service.
@@ -153,10 +154,20 @@ class Service(object):
         self.pid_file = _PIDFile(os.path.join(pid_dir, name + '.pid'))
 
         self.logger = logging.getLogger(name)
-        handler = logging.handlers.SysLogHandler(address='/dev/log')
-        format_str = '%(name)s: <%(levelname)s> %(message)s'
-        handler.setFormatter(logging.Formatter(format_str))
-        self.logger.addHandler(handler)
+        # When a service with the same name is created multiple times
+        # during the same run of the host program then ``getLogger``
+        # always returns the same instance. We therefore only add a
+        # handler if the logger doesn't already have one.
+        for handler in self.logger.handlers:
+            if isinstance(handler, SysLogHandler):
+                self._handler = handler
+                break
+        else:
+            self._handler = SysLogHandler(address='/dev/log',
+                                          facility=SysLogHandler.LOG_DAEMON)
+            format_str = '%(name)s: <%(levelname)s> %(message)s'
+            self._handler.setFormatter(logging.Formatter(format_str))
+            self.logger.addHandler(self._handler)
         self.logger.setLevel(logging.DEBUG)
 
     def is_running(self):
@@ -195,8 +206,13 @@ class Service(object):
         pid = self.get_pid()
         if not pid:
             raise ValueError('Daemon is not running.')
-        os.kill(pid, signal.SIGKILL)
-        self.pid_file.break_lock()
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except OSError as e:
+            if e.errno == errno.ESRCH:
+                raise ValueError('Daemon is not running.')
+        finally:
+            self.pid_file.break_lock()
 
     def start(self):
         """
@@ -230,12 +246,19 @@ class Service(object):
 
         setproctitle.setproctitle(self.name)
 
-        def terminator(signum, frame):
+        def delegator(target):
             try:
-                self.on_stop()
+                target()
             except Exception as e:
                 self.logger.exception(e)
-            sys.exit()
+            try:
+                self.pid_file.release()
+            except Exception as e:
+                self.logger.exception(e)
+            os._exit(os.EX_OK)
+
+        terminator = lambda signum, frame: delegator(self.on_stop)
+        runner = lambda: delegator(self.run)
 
         try:
             self.pid_file.acquire(timeout=0)
@@ -246,7 +269,8 @@ class Service(object):
                         signal.SIGTTOU: None,
                         signal.SIGTSTP: None,
                         signal.SIGTERM: terminator,
-                    }):
+                    },
+                    files_preserve=[self._handler.socket.fileno()]):
                 # Python's signal handling mechanism only forwards signals to
                 # the main thread and only when that thread is doing something
                 # (e.g. not when it's waiting for a lock, etc.). If we use the
@@ -255,22 +279,17 @@ class Service(object):
                 # communication between ``run`` and ``on_stop``. Hence we use
                 # a separate thread for ``run`` and make sure that the main
                 # loop receives signals.
-                thread = threading.Thread(target=self.run)
+                thread = threading.Thread(target=runner)
                 thread.start()
                 while thread.is_alive():
                     time.sleep(1)
         except Exception as e:
             self.logger.exception(e)
-        finally:
-            try:
-                self.pid_file.release()
-            except Exception as e:
-                self.logger.exception(e)
 
         # We need to shutdown the daemon process at this point, because
         # otherwise it will continue executing from after the original
         # call to ``start``.
-        sys.exit()
+        os._exit(os.EX_OK)
 
     def run(self):
         """

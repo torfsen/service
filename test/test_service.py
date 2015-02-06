@@ -24,6 +24,9 @@
 Tests for the ``service`` module.
 """
 
+import logging
+import os
+import tempfile
 import threading
 import time
 
@@ -31,7 +34,7 @@ import lockfile
 from nose.tools import ok_ as ok, raises
 import psutil
 
-from service import Service
+import service
 
 
 _NAME = 'python-service-test-daemon'
@@ -61,7 +64,7 @@ def assert_not_running():
     ok(not is_running(), 'Process is running.')
 
 
-class BasicService(Service):
+class BasicService(service.Service):
     """
     Service base class.
 
@@ -92,14 +95,16 @@ class WaitingService(BasicService):
     """
     Test service that waits until shutdown via SIGTERM.
     """
-    def __init__(self):
+    def __init__(self, wait_on_stop=0):
         super(WaitingService, self).__init__()
         self.event = threading.Event()
+        self.wait_on_stop = wait_on_stop
 
     def run(self):
         self.event.wait()
 
     def on_stop(self):
+        time.sleep(self.wait_on_stop)
         self.event.set()
 
 
@@ -112,6 +117,24 @@ class ForeverService(BasicService):
             time.sleep(1)
 
     on_stop = run
+
+
+class CallbackService(BasicService):
+    """
+    A service that calls callbacks in ``run`` and ``on_stop``.
+    """
+    def __init__(self, run=None, on_stop=None, *args, **kwargs):
+        super(CallbackService, self).__init__(*args, **kwargs)
+        self._run_callback = run
+        self._on_stop_callback = on_stop
+
+    def run(self):
+        if self._run_callback:
+            self._run_callback(self)
+
+    def on_stop(self):
+        if self._on_stop_callback:
+            self._on_stop_callback(self)
 
 
 def start(service):
@@ -128,6 +151,14 @@ class TestService(object):
     """
     Tests for ``service.Service``.
     """
+    def get_log(self):
+        with open(self.logfile.name) as f:
+            return f.read()
+
+    def assert_log_contains(self, text, msg=None):
+        if not msg:
+            msg = 'Log does not contain "%s":\n\n%s' % (text, self.get_log())
+        ok(text in self.get_log(), msg)
 
     def setup(self):
         service = BasicService()
@@ -135,8 +166,20 @@ class TestService(object):
             service.kill()
         except ValueError:
             pass
+        self.logfile = tempfile.NamedTemporaryFile(delete=False)
+        self.logfile.close()
+        self.handler = logging.FileHandler(self.logfile.name)
 
-    teardown = setup
+    def teardown(self):
+        service = BasicService()
+        try:
+            service.kill()
+        except ValueError:
+            pass
+        try:
+            os.unlink(self.logfile.name)
+        except OSError:
+            pass
 
     def test_start(self):
         """
@@ -157,14 +200,15 @@ class TestService(object):
         Test ``Service.kill``.
         """
         start(ForeverService()).kill()
+        time.sleep(0.1)
         assert_not_running()
 
     def test_long_on_stop(self):
         """
         Test a long duration of ``on_stop``.
         """
-        start(TimedService(0.2, 1)).stop()
-        time.sleep(0.3)
+        start(WaitingService(1)).stop()
+        time.sleep(0.5)
         assert_running()
 
     def test_kill_removes_pid_file(self):
@@ -172,6 +216,7 @@ class TestService(object):
         Test that ``kill`` removes the PID file.
         """
         start(ForeverService()).kill()
+        time.sleep(0.1)
         start(ForeverService())
 
     @raises(ValueError)
@@ -209,5 +254,52 @@ class TestService(object):
         """
         Test starting a service without necessary permissions.
         """
-        Service(_NAME).start()
+        service.Service(_NAME).start()
+
+    def test_log_exception_in_run(self):
+        """
+        Test exception logging for errors in ``run``.
+        """
+        def run(service):
+            service.logger.addHandler(logging.FileHandler(self.logfile.name))
+            raise Exception('FOOBAR')
+        CallbackService(run).start()
+        time.sleep(0.1)
+        self.assert_log_contains('FOOBAR')
+
+    def test_log_exception_in_on_stop(self):
+        """
+        Test exception logging for errors in ``on_stop``.
+        """
+        def run(service):
+            time.sleep(2)
+        def on_stop(service):
+            service.logger.addHandler(logging.FileHandler(self.logfile.name))
+            raise Exception('FOOBAR')
+        start(CallbackService(run, on_stop)).stop()
+        time.sleep(0.1)
+        self.assert_log_contains('FOOBAR')
+
+    def test_exception_in_run_removes_pid_file(self):
+        """
+        Test that the PID file is removed if there's an exception in ``run``.
+        """
+        def run(service):
+            raise Exception('FOOBAR')
+        CallbackService(run).start()
+        time.sleep(0.1)
+        start(ForeverService())
+
+    def test_exception_in_on_stop_removes_pid_file(self):
+        """
+        Test that the PID file is removed if there's an exception in ``on_stop``.
+        """
+        def run(service):
+            time.sleep(2)
+        def on_stop(service):
+            service.logger.addHandler(logging.FileHandler(self.logfile.name))
+            raise Exception('FOOBAR')
+        start(CallbackService(run, on_stop)).stop()
+        time.sleep(0.1)
+        start(ForeverService())
 
