@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-# Copyright (c) 2014 Florian Brucker
+# Copyright (c) 2014, 2015 Florian Brucker
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
