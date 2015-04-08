@@ -20,21 +20,6 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-"""
-Easy implementation of Unix background services.
-
-This module makes it easy to write Unix services, i.e. background
-processes ("daemons") that are controlled by a foreground application
-(e.g. a console script).
-
-The package is built around the python-daemon_ module, which provides
-the means for creating well-behaved daemon processes. The ``service``
-package adds a control infrastructure for easily starting, stopping,
-querying and killing the background process from a foreground
-application.
-
-.. _python-daemon: https://pypi.python.org/pypi/python-daemon
-"""
 
 import errno
 import logging
@@ -121,19 +106,20 @@ class Service(object):
     be called from the controlling process while others run in the
     daemon process. The control methods are:
 
-    * ``start`` to start the daemon
-    * ``stop`` to ask the daemon to stop
-    * ``kill`` to kill the daemon
-    * ``is_running`` to check whether the daemon is running
-    * ``get_pid`` to get the daemon's process ID
+    * :py:meth:`start` to start the daemon
+    * :py:meth:`stop` to ask the daemon to stop
+    * :py:meth:`kill` to kill the daemon
+    * :py:meth:`is_running` to check whether the daemon is running
+    * :py:meth:`get_pid` to get the daemon's process ID
 
     Subclasses usually do not need to override any of these.
 
-    The daemon methods are ``run`` and ``on_stop``. Subclasses should
-    at least override the ``run`` method to provide the major daemon
-    functionality. You may also want to provide a custom implementation
-    of ``on_stop`` which is called when the daemon receives a SIGTERM
-    signal (for example after ``stop`` was called).
+    The daemon methods are :py:meth:`run` and :py:meth:`on_stop`.
+    Subclasses should at least override the :py:meth:`run` method to
+    provide the major daemon functionality. You may also want to provide
+    a custom implementation of :py:meth:`on_stop` which is called when
+    the daemon receives a SIGTERM signal (for example after
+    :py:meth:`stop` was called).
 
     The daemon can use its ``logger`` attribute to log messages to
     syslog. Uncaught exceptions that occur while the daemon is running
@@ -187,7 +173,8 @@ class Service(object):
         Tell the daemon process to stop.
 
         Sends the SIGTERM signal to the daemon process, requesting it
-        to terminate. A
+        to terminate. Once the signal is received, :py:meth:`on_stop` is
+        called in the daemon process.
         """
         pid = self.get_pid()
         if not pid:
@@ -199,7 +186,7 @@ class Service(object):
         Kill the daemon process.
 
         Sends the SIGKILL signal to the daemon process, killing it. You
-        probably want to try ``stop`` first.
+        probably want to try :py:meth:`stop` first.
 
         After the process is killed its PID file is removed.
         """
@@ -221,8 +208,8 @@ class Service(object):
         The daemon process is started in the background and the calling
         process returns.
 
-        Once the daemon process is initialized it calls the ``run``
-        method.
+        Once the daemon process is initialized it calls the
+        :py:meth:`run` method.
         """
         pid = self.get_pid()
         if pid:
@@ -304,8 +291,8 @@ class Service(object):
         Typical implementations therefore contain some kind of loop.
 
         The daemon may also be terminated by sending it the SIGTERM
-        signal. In that case ``on_stop`` will be called and should make
-        the loop in ``run`` terminate.
+        signal. In that case :py:meth:`on_stop` will be called and
+        should make the loop in :py:meth:`run` terminate.
         """
         pass
 
@@ -325,7 +312,7 @@ class Service(object):
         The default implementation does nothing and returns immediately.
 
         Note that this method is not automatically called when the
-        daemon's ``run`` method exits.
+        daemon's :py:meth:`run` method exits.
         """
         pass
 

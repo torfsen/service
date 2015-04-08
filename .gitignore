@@ -3,6 +3,7 @@
 /dist/
 /src/service.egg-info/
 /build/
+/docs/_build/
 
 /.coverage
 
