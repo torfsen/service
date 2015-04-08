@@ -32,12 +32,9 @@ application (e.g. a console script)::
         else:
             sys.exit('Unknown command "%s".' % cmd)
 
-The package is built around the python-daemon_ package, which provides the
-means for creating well-behaved daemon processes. The ``service`` package adds
-a control infrastructure for easily starting, stopping, querying and killing
-the background process from a foreground application.
+For details, please see the documentation_.
 
-.. _python-daemon: https://pypi.python.org/pypi/python-daemon
+.. _documentation: http://python-service.readthedocs.org/
 
 
 Installation
