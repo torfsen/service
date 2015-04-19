@@ -23,7 +23,7 @@ pip_::
 
     pip install service
 
-.. _PyPI: https://pypi.python.org/pypi
+.. _PyPI: https://pypi.python.org/pypi/service
 .. _pip: https://pip.pypa.io/
 
 
