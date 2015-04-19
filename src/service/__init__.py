@@ -102,9 +102,10 @@ class Service(object):
     checking whether the daemon is running, asking the daemon to
     terminate and for killing the daemon should that become necessary.
 
-    The class has a dual interface: Some of the methods are intended to
-    be called from the controlling process while others run in the
-    daemon process. The control methods are:
+    The class has a dual interface: Some methods control the daemon and
+    are intended to be called from the controlling process while others
+    implement the actual daemon functionality or utilities for it. The
+    control methods are:
 
     * :py:meth:`start` to start the daemon
     * :py:meth:`stop` to ask the daemon to stop
@@ -114,16 +115,19 @@ class Service(object):
 
     Subclasses usually do not need to override any of these.
 
-    The daemon methods are :py:meth:`run` and :py:meth:`on_stop`.
-    Subclasses should at least override the :py:meth:`run` method to
-    provide the major daemon functionality. You may also want to provide
-    a custom implementation of :py:meth:`on_stop` which is called when
-    the daemon receives a SIGTERM signal (for example after
-    :py:meth:`stop` was called).
+    To provide the actual daemon functionality, subclasses override
+    :py:meth:`run`, which is executed in a separate daemon process when
+    :py:meth:`start` is called. Once :py:meth:`run` exits, the daemon
+    process stops.
 
-    The daemon can use its ``logger`` attribute to log messages to
-    syslog. Uncaught exceptions that occur while the daemon is running
-    are automatically logged that way.
+    From within :py:meth:`run`, the daemon can use its :py:attr:`logger`
+    attribute to log messages to syslog. Uncaught exceptions that occur
+    while the daemon is running are automatically logged that way.
+
+    When :py:meth:`stop` is called, the SIGTERM signal is sent to the
+    daemon process, which can check for its reception using
+    :py:meth:`got_sigterm` or wait for it using
+    :py:meth:`wait_for_sigterm`.
     """
 
     def __init__(self, name, pid_dir='/var/run'):
@@ -138,8 +142,15 @@ class Service(object):
         """
         self.name = name
         self.pid_file = _PIDFile(os.path.join(pid_dir, name + '.pid'))
+        self._got_sigterm = threading.Event()
 
         self.logger = logging.getLogger(name)
+        """
+        Logger for logging to syslog.
+
+        This is an instance of ``logging.Logger`` configured to log
+        to syslog. It can be used to log messages from :py:meth:`run`.
+        """
         # When a service with the same name is created multiple times
         # during the same run of the host program then ``getLogger``
         # always returns the same instance. We therefore only add a
@@ -168,13 +179,45 @@ class Service(object):
         """
         return self.pid_file.read_pid()
 
+    def got_sigterm(self):
+        """
+        Check if SIGTERM signal was received.
+
+        Returns ``True`` if the daemon process has received the SIGTERM
+        signal (for example because :py:meth:`stop` was called).
+
+        .. note::
+            This function always returns ``False`` when it is not called
+            from the daemon process.
+        """
+        return self._got_sigterm.is_set()
+
+    def wait_for_sigterm(self, timeout=None):
+        """
+        Wait until a SIGTERM signal has been received.
+
+        This function blocks until the daemon process has received the
+        SIGTERM signal (for example because :py:meth:`stop` was called).
+
+        If ``timeout`` is given and not ``None`` it specifies a timeout
+        for the block.
+
+        The return value is ``True`` if SIGTERM was received and
+        ``False`` otherwise (the latter only occurs if a timeout was
+        given and the signal was not received).
+
+        .. note::
+            This function blocks indefinitely (or until the given)
+            timeout when it is not called from the daemon process.
+        """
+        return self._got_sigterm.wait(timeout)
+
     def stop(self):
         """
         Tell the daemon process to stop.
 
         Sends the SIGTERM signal to the daemon process, requesting it
-        to terminate. Once the signal is received, :py:meth:`on_stop` is
-        called in the daemon process.
+        to terminate.
         """
         pid = self.get_pid()
         if not pid:
@@ -233,19 +276,19 @@ class Service(object):
 
         setproctitle.setproctitle(self.name)
 
-        def delegator(target):
+        def on_sigterm(signum, frame):
+            self._got_sigterm.set()
+
+        def runner():
             try:
-                target()
+                self.run()
             except Exception as e:
                 self.logger.exception(e)
             try:
                 self.pid_file.release()
             except Exception as e:
                 self.logger.exception(e)
-            os._exit(os.EX_OK)
-
-        terminator = lambda signum, frame: delegator(self.on_stop)
-        runner = lambda: delegator(self.run)
+            os._exit(os.EX_OK)  # FIXME: This seems redundant
 
         try:
             self.pid_file.acquire(timeout=0)
@@ -255,18 +298,20 @@ class Service(object):
                         signal.SIGTTIN: None,
                         signal.SIGTTOU: None,
                         signal.SIGTSTP: None,
-                        signal.SIGTERM: terminator,
+                        signal.SIGTERM: on_sigterm,
                     },
                     files_preserve=[self._handler.socket.fileno()]):
                 # Python's signal handling mechanism only forwards signals to
                 # the main thread and only when that thread is doing something
                 # (e.g. not when it's waiting for a lock, etc.). If we use the
                 # main thread for the ``run`` method this means that we cannot
-                # use the synchronization devices from ``threading`` for the
-                # communication between ``run`` and ``on_stop``. Hence we use
-                # a separate thread for ``run`` and make sure that the main
-                # loop receives signals.
+                # use the synchronization devices from ``threading`` for
+                # communicating the reception of SIGTERM to ``run``. Hence we
+                # use  a separate thread for ``run`` and make sure that the
+                # main loop receives signals. See
+                # https://bugs.python.org/issue1167930
                 thread = threading.Thread(target=runner)
+                self._got_sigterm.clear()
                 thread.start()
                 while thread.is_alive():
                     time.sleep(1)
@@ -291,28 +336,10 @@ class Service(object):
         Typical implementations therefore contain some kind of loop.
 
         The daemon may also be terminated by sending it the SIGTERM
-        signal. In that case :py:meth:`on_stop` will be called and
-        should make the loop in :py:meth:`run` terminate.
-        """
-        pass
-
-    def on_stop(self):
-        """
-        Called when daemon receives signal to terminate.
-
-        This method is automatically called when the daemon receives
-        the SIGTERM signal, telling it to terminate. The call is done
-        via Python's signalling mechanisms, see the ``signal`` module
-        for details. Most importantly, the call is asynchronous.
-
-        A subclass's implementation should stop the daemon's work and
-        perform the necessary cleanup. The actual shutdown of the
-        daemon process is done automatically once this method exits.
-
-        The default implementation does nothing and returns immediately.
-
-        Note that this method is not automatically called when the
-        daemon's :py:meth:`run` method exits.
+        signal, in which case :py:meth:`run` should terminate after
+        performing any necessary clean up routines. You can use
+        :py:meth:`got_sigterm` and :py:meth:`wait_for_sigterm` to
+        check whether SIGTERM has been received.
         """
         pass
 

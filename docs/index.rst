@@ -31,12 +31,15 @@ Quickstart
 ==========
 ::
 
+    import time
+
     from service import Service
 
     class MyService(Service):
         def run(self):
-            while True:
-                do_work()
+            while not self.got_sigterm():
+                self.logger.info("I'm working...")
+                time.sleep(5)
 
     if __name__ == '__main__':
         import sys
@@ -73,5 +76,4 @@ API Reference
     :members:
     :undoc-members:
     :special-members: __init__
-
 
