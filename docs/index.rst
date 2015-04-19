@@ -63,12 +63,6 @@ Quickstart
             sys.exit('Unknown command "%s".' % cmd)
 
 
-Development
-===========
-The code for this package can be found `on GitHub <https://github.com/torfuspolymorphus/service>`_.
-It is available under the `MIT license <http://opensource.org/licenses/MIT>`_.
-
-
 API Reference
 =============
 
@@ -77,3 +71,20 @@ API Reference
     :undoc-members:
     :special-members: __init__
 
+
+Development
+===========
+The code for this package can be found `on GitHub <https://github.com/torfuspolymorphus/service>`_.
+It is available under the `MIT license <http://opensource.org/licenses/MIT>`_.
+
+
+History
+=======
+:0.2.0:
+    Easier mechanism for handling the stopping of the service
+
+:0.1.1:
+    Improved error handling
+
+:0.1.0:
+    Initial release
