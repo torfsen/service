@@ -53,22 +53,15 @@ if not version:
 if not doc_lines:
     raise RuntimeError('Could not extract doc string from "%s".' % SOURCE_FILE)
 
-description = doc_lines[0].strip()
-long_description = ''.join(doc_lines[1:]).strip()
-
-print "*" * 40
-print "Version = %s" % version
-print ""
-print "Description = ",
-print description
-print ""
-print "Long description = ",
-print long_description
-print "*" * 40
+long_description = """
+This package makes it easy to write Unix services, i.e. background
+processes ("daemons") that are controlled by a foreground application
+(e.g. a console script).
+""".strip()
 
 setup(
     name='service',
-    description=description,
+    description='Easy Implementation of Background Services',
     long_description=long_description,
     url='https://github.com/torfuspolymorphus/service',
     version=version,
