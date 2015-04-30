@@ -25,6 +25,7 @@ import errno
 import logging
 from logging.handlers import SysLogHandler
 import os
+import os.path
 import signal
 import socket
 import sys
@@ -90,6 +91,18 @@ class _PIDFile(lockfile.pidlockfile.PIDLockFile):
         self.pid = os.getpid()
         return lockfile.pidlockfile.PIDLockFile.acquire(self, *args, **kwargs)
 
+
+def _find_syslog():
+    """
+    Find Syslog.
+
+    Returns Syslog's location on the current system in a form that can
+    be passed on to ``logging.handlers.SysLogHandler``.
+    """
+    for path in ['/dev/log', '/var/run/syslog']:
+        if os.path.exists(path):
+            return path
+    return ('127.0.0.1', 514)
 
 
 class Service(object):
@@ -160,7 +173,7 @@ class Service(object):
                 self._handler = handler
                 break
         else:
-            self._handler = SysLogHandler(address='/dev/log',
+            self._handler = SysLogHandler(address=_find_syslog(),
                                           facility=SysLogHandler.LOG_DAEMON)
             format_str = '%(name)s: <%(levelname)s> %(message)s'
             self._handler.setFormatter(logging.Formatter(format_str))
