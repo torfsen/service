@@ -37,7 +37,7 @@ import lockfile.pidlockfile
 import setproctitle
 
 
-__version__ = '0.2.0'
+__version__ = '0.3.0'
 
 __all__ = ['Service']
 
@@ -219,23 +219,36 @@ class Service(object):
         ``False`` otherwise (the latter only occurs if a timeout was
         given and the signal was not received).
 
-        .. note::
-            This function blocks indefinitely (or until the given)
-            timeout when it is not called from the daemon process.
+        .. warning::
+            This function blocks indefinitely (or until the given
+            timeout) when it is not called from the daemon process.
         """
         return self._got_sigterm.wait(timeout)
 
-    def stop(self):
+    def stop(self, block=False):
         """
         Tell the daemon process to stop.
 
         Sends the SIGTERM signal to the daemon process, requesting it
         to terminate.
+
+        If ``block`` is true then the call blocks until the daemon
+        process has exited. This may take some time since the daemon
+        process will complete its on-going backup activities before
+        shutting down. ``block`` can either be ``True`` (in which case
+        it blocks indefinitely) or a timeout in seconds.
+
+        The return value is ``True`` if the daemon process has been
+        stopped and ``False`` otherwise.
+
+        .. versionadded:: 0.3
+            The ``block`` parameter
         """
         pid = self.get_pid()
         if not pid:
             raise ValueError('Daemon is not running.')
         os.kill(pid, signal.SIGTERM)
+        return self._block(lambda: not self.is_running(), block)
 
     def kill(self):
         """
@@ -257,7 +270,29 @@ class Service(object):
         finally:
             self.pid_file.break_lock()
 
-    def start(self):
+    def _block(self, predicate, timeout):
+        """
+        Block until a predicate becomes true.
+
+        ``predicate`` is a function taking no arguments. The call to
+        ``_block`` blocks until ``predicate`` returns a true value. This
+        is done by polling ``predicate``.
+
+        ``timeout`` is either ``True`` (block indefinitely) or a timeout
+        in seconds.
+
+        The return value is the value of the predicate after the
+        timeout.
+        """
+        if timeout:
+            if timeout is True:
+                timeout = float('Inf')
+            timeout = time.time() + timeout
+            while not predicate() and time.time() < timeout:
+                time.sleep(0.1)
+        return predicate()
+
+    def start(self, block=False):
         """
         Start the daemon process.
 
@@ -266,6 +301,16 @@ class Service(object):
 
         Once the daemon process is initialized it calls the
         :py:meth:`run` method.
+
+        If ``block`` is true then the call blocks until the daemon
+        process has started. ``block`` can either be ``True`` (in which
+        case it blocks indefinitely) or a timeout in seconds.
+
+        The return value is ``True`` if the daemon process has been
+        started and ``False`` otherwise.
+
+        .. versionadded:: 0.3
+            The ``block`` parameter
         """
         pid = self.get_pid()
         if pid:
@@ -284,7 +329,7 @@ class Service(object):
 
         if _detach_process():
             # Calling process returns
-            return
+            return self._block(lambda: self.is_running(), block)
         # Daemon process continues here
 
         setproctitle.setproctitle(self.name)

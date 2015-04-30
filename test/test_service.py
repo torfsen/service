@@ -103,6 +103,12 @@ class ForeverService(BasicService):
         while True:
             time.sleep(1)
 
+class FailingService(BasicService):
+    """
+    A service that throws an exception.
+    """
+    def run(self):
+        raise RuntimeError('Oops')
 
 class CallbackService(BasicService):
     """
@@ -172,6 +178,18 @@ class TestService(object):
         """
         start(TimedService(1))
 
+    def test_start_timeout_ok(self):
+        """
+        Test ``Service.start`` with a timeout.
+        """
+        ok(TimedService(1).start(block=1))
+
+    def test_start_timeout_fail(self):
+        """
+        Test ``Service.start`` with a timeout and a failing daemon.
+        """
+        ok(not FailingService().start(block=1))
+
     def test_stop(self):
         """
         Test ``Service.stop``.
@@ -179,6 +197,18 @@ class TestService(object):
         start(WaitingService()).stop()
         time.sleep(1)
         assert_not_running()
+
+    def test_stop_timeout_ok(self):
+        """
+        Test ``Service.stop`` with a timeout.
+        """
+        ok(start(WaitingService()).stop(block=1))
+
+    def test_stop_timeout_fail(self):
+        """
+        Test ``Service.stop`` with a timeout and stuck daemon.
+        """
+        ok(not start(ForeverService()).stop(block=1))
 
     def test_kill(self):
         """
