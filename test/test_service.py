@@ -127,7 +127,7 @@ def start(service):
     Start a service and wait until it's running.
     """
     service.start()
-    time.sleep(0.1)
+    time.sleep(0.5)
     assert_running()
     return service
 
@@ -170,14 +170,14 @@ class TestService(object):
         """
         Test ``Service.start``.
         """
-        start(TimedService(0.2))
+        start(TimedService(1))
 
     def test_stop(self):
         """
         Test ``Service.stop``.
         """
         start(WaitingService()).stop()
-        time.sleep(0.1)
+        time.sleep(1)
         assert_not_running()
 
     def test_kill(self):
@@ -185,7 +185,7 @@ class TestService(object):
         Test ``Service.kill``.
         """
         start(ForeverService()).kill()
-        time.sleep(0.1)
+        time.sleep(1)
         assert_not_running()
 
     def test_kill_removes_pid_file(self):
@@ -193,7 +193,7 @@ class TestService(object):
         Test that ``kill`` removes the PID file.
         """
         start(ForeverService()).kill()
-        time.sleep(0.1)
+        time.sleep(1)
         start(ForeverService())
 
     @raises(ValueError)
@@ -241,7 +241,7 @@ class TestService(object):
             service.logger.addHandler(logging.FileHandler(self.logfile.name))
             raise Exception('FOOBAR')
         CallbackService(run).start()
-        time.sleep(0.1)
+        time.sleep(1)
         self.assert_log_contains('FOOBAR')
 
     def test_exception_in_run_removes_pid_file(self):
@@ -251,6 +251,6 @@ class TestService(object):
         def run(service):
             raise Exception('FOOBAR')
         CallbackService(run).start()
-        time.sleep(0.1)
+        time.sleep(1)
         start(ForeverService())
 
