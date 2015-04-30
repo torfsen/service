@@ -103,12 +103,37 @@ class ForeverService(BasicService):
         while True:
             time.sleep(1)
 
+class OneTimeLock(object):
+    """
+    Pseudo-lock that can only be acquired once.
+
+    See ``FailingService``.
+    """
+    def __init__(self, *args, **kwargs):
+        self._acquired = False
+
+    def acquire(self, *args, **kwargs):
+        if self._acquired:
+            raise RuntimeError('Oops')
+        self._acquired = True
+
+    def release(self, *args, **kwargs):
+        pass
+
+    def read_pid(self, *args, **kwargs):
+        return None
+
 class FailingService(BasicService):
     """
-    A service that throws an exception.
+    A service that fails to start.
+
+    This is a hack that works by using a PID lock file object which can
+    only be acquired once. This is necessary to create a daemon that
+    fails reliably before the daemon process exists.
     """
-    def run(self):
-        raise RuntimeError('Oops')
+    def __init__(self, *args, **kwargs):
+        super(FailingService, self).__init__(*args, **kwargs)
+        self.pid_file = OneTimeLock()
 
 class CallbackService(BasicService):
     """
