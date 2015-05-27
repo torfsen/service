@@ -31,11 +31,19 @@ Quickstart
 ==========
 ::
 
+    import logging
+    from logging.handlers import SysLogHandler
     import time
 
-    from service import Service
+    from service import find_syslog, Service
 
     class MyService(Service):
+        def __init__(self, *args, **kwargs):
+            super(MyService, self).__init__(*args, **kwargs)
+            self.logger.addHandler(SysLogHandler(address=find_syslog(),
+                                   facility=SysLogHandler.LOG_DAEMON))
+            self.logger.setLevel(logging.INFO)
+
         def run(self):
             while not self.got_sigterm():
                 self.logger.info("I'm working...")
@@ -61,6 +69,63 @@ Quickstart
                 print "Service is not running."
         else:
             sys.exit('Unknown command "%s".' % cmd)
+
+
+Control Interface
+=================
+The :py:class:`~service.Service` class has a dual interface: Some methods
+control the daemon and are intended to be called from the controlling process
+while others implement the actual daemon functionality or utilities for it.
+
+The control methods are:
+
+* :py:meth:`~service.Service.start` to start the daemon
+* :py:meth:`~service.Service.stop` to ask the daemon to stop
+* :py:meth:`~service.Service.kill` to kill the daemon
+* :py:meth:`~service.Service.is_running` to check whether the daemon is running
+* :py:meth:`~service.Service.get_pid` to get the daemon's process ID
+
+Subclasses usually do not need to override any of these.
+
+
+Daemon Functionality
+====================
+To provide the actual daemon functionality, subclasses override
+:py:meth:`~service.Service.run`, which is executed in a separate daemon process
+when :py:meth:`~service.Service.start` is called. Once
+:py:meth:`~service.Service.run` exits, the daemon process stops.
+
+When :py:meth:`~service.Service.stop` is called, the SIGTERM signal is sent to
+the daemon process, which can check for its reception using
+:py:meth:`~service.Service.got_sigterm` or wait for it using
+:py:meth:`~service.Service.wait_for_sigterm`.
+
+
+Logging
+=======
+Instances of :py:class:`~service.Service` provide a built-in logger via their
+:py:attr:`~service.Service.logger` attribute. By default the logger only has a
+:py:class:`logging.NullHandler` attached, so all messages are discarded. Attach
+your own handler to output log messages to files or syslog (see the handlers
+provided by the :py:mod:`logging` and :py:mod:`logging.handlers` modules).
+
+Any uncaught exceptions from :py:meth:`~service.Service.run` are automatically
+logged via that logger. To avoid error messages during startup being lost make
+sure to attach your logging handlers before calling
+:py:meth:`~service.Service.start`.
+
+If you want use syslog for logging take a look at
+:py:func:`~service.find_syslog`, which provides a portable way of locating
+syslog.
+
+
+Preserving File Handles
+=======================
+By default, all open file handles are released by the daemon process. If you
+need to preserve some of them add them to the
+:py:attr:`~service.Service.files_preserve` list attribute. Note that file
+handles used by any built-in Python logging handlers attached to
+:py:attr:`~service.Service.logger` are automatically preserved.
 
 
 API Reference

@@ -26,12 +26,13 @@ Tests for the ``service`` module.
 
 import logging
 import os
+import os.path
 import tempfile
 import threading
 import time
 
 import lockfile
-from nose.tools import ok_ as ok, raises
+from nose.tools import eq_ as eq, ok_ as ok, raises
 import psutil
 
 import service
@@ -103,6 +104,7 @@ class ForeverService(BasicService):
         while True:
             time.sleep(1)
 
+
 class OneTimeLock(object):
     """
     Pseudo-lock that can only be acquired once.
@@ -123,6 +125,7 @@ class OneTimeLock(object):
     def read_pid(self, *args, **kwargs):
         return None
 
+
 class FailingService(BasicService):
     """
     A service that fails to start.
@@ -134,6 +137,7 @@ class FailingService(BasicService):
     def __init__(self, *args, **kwargs):
         super(FailingService, self).__init__(*args, **kwargs)
         self.pid_file = OneTimeLock()
+
 
 class CallbackService(BasicService):
     """
@@ -308,4 +312,48 @@ class TestService(object):
         CallbackService(run).start()
         time.sleep(1)
         start(ForeverService())
+
+    def test_files_preserve(self):
+        """
+        Test file handle preservation.
+        """
+        class FileHandleService(BasicService):
+            def __init__(self):
+                super(FileHandleService, self).__init__()
+                self.f = tempfile.NamedTemporaryFile(delete=False)
+                self.files_preserve = [self.f]
+            def run(self):
+                self.f.write('foobar')
+                self.f.close()
+                self.wait_for_sigterm()
+
+        service = FileHandleService()
+        start(service)
+        service.stop(block=1)
+        ok(os.path.isfile(service.f.name))
+        with open(service.f.name, 'r') as f:
+            eq(f.read(), 'foobar')
+        os.unlink(f.name)
+
+    def test_builtin_log_handlers_file_handles_are_preserved(self):
+        """
+        Test that file handles of built-in log handlers are preserved.
+        """
+        class LoggingService(BasicService):
+            def __init__(self):
+                super(LoggingService, self).__init__()
+                self.f = tempfile.NamedTemporaryFile(delete=False)
+                self.f.close()
+                self.logger.addHandler(logging.FileHandler(self.f.name))
+            def run(self):
+                self.logger.warn('foobar')
+                self.wait_for_sigterm()
+
+        service = LoggingService()
+        start(service)
+        service.stop(block=1)
+        ok(os.path.isfile(service.f.name))
+        with open(service.f.name, 'r') as f:
+            ok('foobar' in f.read())
+        os.unlink(f.name)
 

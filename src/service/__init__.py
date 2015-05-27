@@ -39,7 +39,7 @@ import setproctitle
 
 __version__ = '0.3.0'
 
-__all__ = ['Service']
+__all__ = ['find_syslog', 'Service']
 
 
 def _detach_process():
@@ -92,12 +92,15 @@ class _PIDFile(lockfile.pidlockfile.PIDLockFile):
         return lockfile.pidlockfile.PIDLockFile.acquire(self, *args, **kwargs)
 
 
-def _find_syslog():
+def find_syslog():
     """
     Find Syslog.
 
     Returns Syslog's location on the current system in a form that can
-    be passed on to ``logging.handlers.SysLogHandler``.
+    be passed on to :py:class:`logging.handlers.SysLogHandler`::
+
+        handler = SysLogHandler(address=find_syslog(),
+                                facility=SysLogHandler.LOG_DAEMON)
     """
     for path in ['/dev/log', '/var/run/syslog']:
         if os.path.exists(path):
@@ -115,32 +118,15 @@ class Service(object):
     checking whether the daemon is running, asking the daemon to
     terminate and for killing the daemon should that become necessary.
 
-    The class has a dual interface: Some methods control the daemon and
-    are intended to be called from the controlling process while others
-    implement the actual daemon functionality or utilities for it. The
-    control methods are:
+    .. py:attribute:: logger
 
-    * :py:meth:`start` to start the daemon
-    * :py:meth:`stop` to ask the daemon to stop
-    * :py:meth:`kill` to kill the daemon
-    * :py:meth:`is_running` to check whether the daemon is running
-    * :py:meth:`get_pid` to get the daemon's process ID
+        A :py:class:`logging.Logger` instance.
 
-    Subclasses usually do not need to override any of these.
+    .. py:attribute:: files_preserve
 
-    To provide the actual daemon functionality, subclasses override
-    :py:meth:`run`, which is executed in a separate daemon process when
-    :py:meth:`start` is called. Once :py:meth:`run` exits, the daemon
-    process stops.
-
-    From within :py:meth:`run`, the daemon can use its :py:attr:`logger`
-    attribute to log messages to syslog. Uncaught exceptions that occur
-    while the daemon is running are automatically logged that way.
-
-    When :py:meth:`stop` is called, the SIGTERM signal is sent to the
-    daemon process, which can check for its reception using
-    :py:meth:`got_sigterm` or wait for it using
-    :py:meth:`wait_for_sigterm`.
+        A list of file handles that should be preserved by the daemon
+        process. File handles of built-in Python logging handlers
+        attached to :py:attr:`logger` are automatically preserved.
     """
 
     def __init__(self, name, pid_dir='/var/run'):
@@ -156,29 +142,28 @@ class Service(object):
         self.name = name
         self.pid_file = _PIDFile(os.path.join(pid_dir, name + '.pid'))
         self._got_sigterm = threading.Event()
-
         self.logger = logging.getLogger(name)
-        """
-        Logger for logging to syslog.
+        if not self.logger.handlers:
+            self.logger.addHandler(logging.NullHandler())
+        self.files_preserve = []
 
-        This is an instance of ``logging.Logger`` configured to log
-        to syslog. It can be used to log messages from :py:meth:`run`.
+    def _get_logger_file_handles(self):
         """
-        # When a service with the same name is created multiple times
-        # during the same run of the host program then ``getLogger``
-        # always returns the same instance. We therefore only add a
-        # handler if the logger doesn't already have one.
+        Find the file handles used by our logger's handlers.
+        """
+        handles = []
         for handler in self.logger.handlers:
-            if isinstance(handler, SysLogHandler):
-                self._handler = handler
-                break
-        else:
-            self._handler = SysLogHandler(address=_find_syslog(),
-                                          facility=SysLogHandler.LOG_DAEMON)
-            format_str = '%(name)s: <%(levelname)s> %(message)s'
-            self._handler.setFormatter(logging.Formatter(format_str))
-            self.logger.addHandler(self._handler)
-        self.logger.setLevel(logging.DEBUG)
+            # The following code works for logging's SysLogHandler,
+            # StreamHandler, SocketHandler, and their subclasses.
+            for attr in ['sock', 'socket', 'stream']:
+                try:
+                    handle = getattr(handler, attr)
+                    if handle:
+                        handles.append(handle)
+                    break
+                except AttributeError:
+                    continue
+        return handles
 
     def is_running(self):
         """
@@ -332,8 +317,6 @@ class Service(object):
             return self._block(lambda: self.is_running(), block)
         # Daemon process continues here
 
-        setproctitle.setproctitle(self.name)
-
         def on_sigterm(signum, frame):
             self._got_sigterm.set()
 
@@ -349,7 +332,10 @@ class Service(object):
             os._exit(os.EX_OK)  # FIXME: This seems redundant
 
         try:
+            setproctitle.setproctitle(self.name)
             self.pid_file.acquire(timeout=0)
+            files_preserve = (self.files_preserve +
+                              self._get_logger_file_handles())
             with DaemonContext(
                     detach_process=False,
                     signal_map={
@@ -358,7 +344,7 @@ class Service(object):
                         signal.SIGTSTP: None,
                         signal.SIGTERM: on_sigterm,
                     },
-                    files_preserve=[self._handler.socket.fileno()]):
+                    files_preserve=files_preserve):
                 # Python's signal handling mechanism only forwards signals to
                 # the main thread and only when that thread is doing something
                 # (e.g. not when it's waiting for a lock, etc.). If we use the

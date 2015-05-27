@@ -38,6 +38,7 @@ extensions = [
     'sphinx.ext.coverage',
     'sphinx.ext.viewcode',
     'sphinx.ext.autodoc',
+    'sphinx.ext.intersphinx',
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -108,6 +109,11 @@ pygments_style = 'sphinx'
 
 # If true, `todo` and `todoList` produce output, else they produce nothing.
 todo_include_todos = False
+
+# Intersphinx configuration
+intersphinx_mapping = {
+    'python': ('https://docs.python.org/2.7', None),
+}
 
 # -- Options for HTML output ----------------------------------------------
 
