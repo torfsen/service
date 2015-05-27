@@ -37,7 +37,7 @@ import lockfile.pidlockfile
 import setproctitle
 
 
-__version__ = '0.3.0'
+__version__ = '0.4.0'
 
 __all__ = ['find_syslog', 'Service']
 

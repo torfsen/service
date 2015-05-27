@@ -145,6 +145,9 @@ It is available under the `MIT license <http://opensource.org/licenses/MIT>`_.
 
 History
 =======
+:0.4.0:
+    * More flexible logging interface
+
 :0.3.0:
     * Support for additional Syslog variants
     * Optional ``block`` parameter for ``Service.start`` and ``Service.stop``
@@ -157,3 +160,4 @@ History
 
 :0.1.0:
     * Initial release
+
