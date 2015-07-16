@@ -145,6 +145,9 @@ It is available under the `MIT license <http://opensource.org/licenses/MIT>`_.
 
 History
 =======
+:0.4.1:
+    * Support for Python 3
+
 :0.4.0:
     * More flexible logging interface
 
