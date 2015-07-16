@@ -4,8 +4,9 @@
 /src/service.egg-info/
 /build/
 /docs/_build/
-
+/.tox/
 /.coverage
+/test/test-*.log
 
 *.swp
 *.pyc

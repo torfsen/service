@@ -24,9 +24,11 @@
 Tests for the ``service`` module.
 """
 
+import errno
 import logging
 import os
 import os.path
+import sys
 import tempfile
 import threading
 import time
@@ -39,6 +41,15 @@ import service
 
 
 _NAME = 'python-service-test-daemon'
+
+
+_LOG_FILE = os.path.join(os.path.dirname(__file__),
+                         'test-%d.%d.log' % sys.version_info[:2])
+try:
+    os.unlink(_LOG_FILE)
+except OSError as e:
+    if e.errno != errno.ENOENT:
+        raise
 
 
 def is_running():
@@ -74,6 +85,9 @@ class BasicService(service.Service):
     """
     def __init__(self):
         super(BasicService, self).__init__(_NAME, pid_dir='/tmp')
+        handler = logging.FileHandler(_LOG_FILE)
+        self.logger.addHandler(handler)
+        self.logger.setLevel(logging.DEBUG)
 
 
 class TimedService(BasicService):
@@ -320,7 +334,7 @@ class TestService(object):
         class FileHandleService(BasicService):
             def __init__(self):
                 super(FileHandleService, self).__init__()
-                self.f = tempfile.NamedTemporaryFile(delete=False)
+                self.f = tempfile.NamedTemporaryFile(mode='wt', delete=False)
                 self.files_preserve = [self.f]
             def run(self):
                 self.f.write('foobar')
