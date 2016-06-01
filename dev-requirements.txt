@@ -1,0 +1,5 @@
+tox
+sphinx
+nose
+coverage
+psutil
