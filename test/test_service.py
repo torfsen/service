@@ -54,7 +54,7 @@ except OSError as e:
 
 PID_DIR = '/tmp'
 
-DELAY = 5
+DELAY = 10
 
 
 def is_running():
@@ -326,8 +326,10 @@ class TestService(object):
         def run(service):
             service.logger.addHandler(logging.FileHandler(self.logfile.name))
             raise Exception('FOOBAR')
-        CallbackService(run).start()
+        service = CallbackService(run)
+        service.start()
         time.sleep(DELAY)
+        assert_not_running()
         self.assert_log_contains('FOOBAR')
 
     def test_exception_in_run_removes_pid_file(self):
@@ -338,7 +340,7 @@ class TestService(object):
             raise Exception('FOOBAR')
         CallbackService(run).start()
         time.sleep(DELAY)
-        start(WaitingService())
+        ok(not pid_file_exists())
 
     def test_files_preserve(self):
         """
