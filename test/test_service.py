@@ -40,16 +40,17 @@ import psutil
 import service
 
 
-_NAME = 'python-service-test-daemon'
+NAME = 'python-service-test-daemon'
 
-
-_LOG_FILE = os.path.join(os.path.dirname(__file__),
-                         'test-%d.%d.log' % sys.version_info[:2])
+LOG_FILE = os.path.join(os.path.dirname(__file__),
+                        'test-%d.%d.log' % sys.version_info[:2])
 try:
-    os.unlink(_LOG_FILE)
+    os.unlink(LOG_FILE)
 except OSError as e:
     if e.errno != errno.ENOENT:
         raise
+
+DELAY = 5
 
 
 def is_running():
@@ -57,7 +58,7 @@ def is_running():
     Check if the test daemon is running.
     """
     for process in psutil.process_iter():
-        if process.name() == _NAME:
+        if process.name() == NAME:
             return True
     return False
 
@@ -84,8 +85,8 @@ class BasicService(service.Service):
     to avoid the necessity of root privileges.
     """
     def __init__(self):
-        super(BasicService, self).__init__(_NAME, pid_dir='/tmp')
-        handler = logging.FileHandler(_LOG_FILE)
+        super(BasicService, self).__init__(NAME, pid_dir='/tmp')
+        handler = logging.FileHandler(LOG_FILE)
         self.logger.addHandler(handler)
         self.logger.setLevel(logging.DEBUG)
 
@@ -225,40 +226,40 @@ class TestService(object):
         """
         Test ``Service.start`` with a timeout.
         """
-        ok(TimedService(1).start(block=1))
+        ok(TimedService(1).start(block=DELAY))
 
     def test_start_timeout_fail(self):
         """
         Test ``Service.start`` with a timeout and a failing daemon.
         """
-        ok(not FailingService().start(block=1))
+        ok(not FailingService().start(block=DELAY))
 
     def test_stop(self):
         """
         Test ``Service.stop``.
         """
         start(WaitingService()).stop()
-        time.sleep(1)
+        time.sleep(DELAY)
         assert_not_running()
 
     def test_stop_timeout_ok(self):
         """
         Test ``Service.stop`` with a timeout.
         """
-        ok(start(WaitingService()).stop(block=1))
+        ok(start(WaitingService()).stop(block=DELAY))
 
     def test_stop_timeout_fail(self):
         """
         Test ``Service.stop`` with a timeout and stuck daemon.
         """
-        ok(not start(ForeverService()).stop(block=1))
+        ok(not start(ForeverService()).stop(block=DELAY))
 
     def test_kill(self):
         """
         Test ``Service.kill``.
         """
         start(ForeverService()).kill()
-        time.sleep(1)
+        time.sleep(DELAY)
         assert_not_running()
 
     def test_kill_removes_pid_file(self):
@@ -266,7 +267,7 @@ class TestService(object):
         Test that ``kill`` removes the PID file.
         """
         start(ForeverService()).kill()
-        time.sleep(1)
+        time.sleep(DELAY)
         start(ForeverService())
 
     @raises(ValueError)
@@ -274,29 +275,30 @@ class TestService(object):
         """
         Test stopping a service that is not running.
         """
-        TimedService().stop()
+        WaitingService().stop()
 
     @raises(ValueError)
     def test_kill_not_running(self):
         """
         Test killing a service that is not running.
         """
-        TimedService().kill()
+        WaitingService().kill()
 
     @raises(ValueError)
     def test_start_already_running(self):
         """
         Test starting a service that is already running.
         """
-        start(TimedService(1)).start()
+        start(WaitingService()).start()
 
     def test_is_running(self):
         """
         Test ``Service.is_running``.
         """
-        service = TimedService(1)
+        service = WaitingService()
         ok(not service.is_running())
         start(service)
+        time.sleep(DELAY)
         ok(service.is_running())
 
     @raises(lockfile.LockFailed)
@@ -304,7 +306,7 @@ class TestService(object):
         """
         Test starting a service without necessary permissions.
         """
-        service.Service(_NAME).start()
+        service.Service(NAME).start()
 
     def test_log_exception_in_run(self):
         """
@@ -314,7 +316,7 @@ class TestService(object):
             service.logger.addHandler(logging.FileHandler(self.logfile.name))
             raise Exception('FOOBAR')
         CallbackService(run).start()
-        time.sleep(1)
+        time.sleep(DELAY)
         self.assert_log_contains('FOOBAR')
 
     def test_exception_in_run_removes_pid_file(self):
@@ -324,8 +326,8 @@ class TestService(object):
         def run(service):
             raise Exception('FOOBAR')
         CallbackService(run).start()
-        time.sleep(1)
-        start(ForeverService())
+        time.sleep(DELAY)
+        start(WaitingService())
 
     def test_files_preserve(self):
         """
@@ -343,11 +345,13 @@ class TestService(object):
 
         service = FileHandleService()
         start(service)
-        service.stop(block=1)
-        ok(os.path.isfile(service.f.name))
-        with open(service.f.name, 'r') as f:
-            eq(f.read(), 'foobar')
-        os.unlink(f.name)
+        try:
+            service.stop(block=DELAY)
+            ok(os.path.isfile(service.f.name))
+            with open(service.f.name, 'r') as f:
+                eq(f.read(), 'foobar')
+        finally:
+            os.unlink(f.name)
 
     def test_builtin_log_handlers_file_handles_are_preserved(self):
         """
@@ -365,9 +369,11 @@ class TestService(object):
 
         service = LoggingService()
         start(service)
-        service.stop(block=1)
-        ok(os.path.isfile(service.f.name))
-        with open(service.f.name, 'r') as f:
-            ok('foobar' in f.read())
-        os.unlink(f.name)
+        try:
+            service.stop(block=DELAY)
+            ok(os.path.isfile(service.f.name))
+            with open(service.f.name, 'r') as f:
+                ok('foobar' in f.read())
+        finally:
+            os.unlink(f.name)
 
