@@ -94,18 +94,6 @@ class BasicService(service.Service):
         self.logger.setLevel(logging.DEBUG)
 
 
-class TimedService(BasicService):
-    """
-    Test service that runs for a certain amount of time.
-    """
-    def __init__(self, duration=0):
-        super(TimedService, self).__init__()
-        self.duration = duration
-
-    def run(self):
-        time.sleep(self.duration)
-
-
 class WaitingService(BasicService):
     """
     Test service that waits until shutdown via SIGTERM.
@@ -187,7 +175,7 @@ def start(service):
     Start a service and wait until it's running.
     """
     service.start()
-    time.sleep(0.5)
+    time.sleep(DELAY)
     assert_running()
     return service
 
@@ -232,13 +220,13 @@ class TestService(object):
         """
         Test ``Service.start``.
         """
-        start(TimedService(1))
+        start(WaitingService())
 
     def test_start_timeout_ok(self):
         """
         Test ``Service.start`` with a timeout.
         """
-        ok(TimedService(1).start(block=DELAY))
+        ok(WaitingService().start(block=DELAY))
 
     def test_start_timeout_fail(self):
         """
