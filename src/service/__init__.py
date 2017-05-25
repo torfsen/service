@@ -311,6 +311,12 @@ class Service(object):
             except lockfile.NotLocked:
                 pass
 
+        # Clear previously received SIGTERMs. This must be done before
+        # the calling process returns so that the calling process can
+        # call ``stop`` directly after ``start`` returns without the
+        # signal being lost.
+        self._got_sigterm.clear()
+
         if _detach_process():
             # Calling process returns
             return self._block(lambda: self.is_running(), block)
@@ -354,7 +360,6 @@ class Service(object):
                 # main loop receives signals. See
                 # https://bugs.python.org/issue1167930
                 thread = threading.Thread(target=runner)
-                self._got_sigterm.clear()
                 thread.start()
                 while thread.is_alive():
                     time.sleep(1)
