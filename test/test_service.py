@@ -52,6 +52,8 @@ except OSError as e:
     if e.errno != errno.ENOENT:
         raise
 
+PID_DIR = '/tmp'
+
 DELAY = 5
 
 
@@ -65,18 +67,27 @@ def is_running():
     return False
 
 
+def pid_file_exists():
+    """
+    Check if the daemon's PID file exists.
+    """
+    return os.path.isfile(os.path.join(PID_DIR, NAME + '.pid'))
+
+
 def assert_running():
     """
     Assert that the test daemon is running.
     """
-    ok(is_running(), 'Process is not running.')
+    ok(is_running(), 'Process is not running but should.')
+    ok(pid_file_exists(), "PID file doesn't exist but should.")
 
 
 def assert_not_running():
     """
     Assert that the test daemon is not running.
     """
-    ok(not is_running(), 'Process is running.')
+    ok(not is_running(), "Process is running but shouldn't.")
+    ok(not pid_file_exists(), "PID file exists but shouldn't.")
 
 
 class BasicService(service.Service):
@@ -87,7 +98,7 @@ class BasicService(service.Service):
     to avoid the necessity of root privileges.
     """
     def __init__(self):
-        super(BasicService, self).__init__(NAME, pid_dir='/tmp')
+        super(BasicService, self).__init__(NAME, pid_dir=PID_DIR)
         self.logger.handlers[:] = []
         handler = logging.FileHandler(LOG_FILE)
         self.logger.addHandler(handler)
