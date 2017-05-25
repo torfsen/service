@@ -102,7 +102,7 @@ class BasicService(service.Service):
         self.logger.handlers[:] = []
         handler = logging.FileHandler(LOG_FILE)
         self.logger.addHandler(handler)
-        self.logger.setLevel(logging.DEBUG)
+        self.logger.setLevel(service.SERVICE_DEBUG)
 
 
 class WaitingService(BasicService):

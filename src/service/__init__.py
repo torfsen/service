@@ -41,6 +41,11 @@ __version__ = '0.4.1'
 __all__ = ['find_syslog', 'Service']
 
 
+# Custom log level below logging.DEBUG for logging internal debug
+# messages.
+SERVICE_DEBUG = logging.DEBUG - 1
+
+
 def _detach_process():
     """
     Detach daemon process.
@@ -145,6 +150,15 @@ class Service(object):
         if not self.logger.handlers:
             self.logger.addHandler(logging.NullHandler())
         self.files_preserve = []
+
+    def _debug(self, msg):
+        """
+        Log an internal debug message.
+
+        Logs a debug message with the :py:data:SERVICE_DEBUG logging
+        level.
+        """
+        self.logger.log(SERVICE_DEBUG, msg)
 
     def _get_logger_file_handles(self):
         """
@@ -321,24 +335,36 @@ class Service(object):
             # Calling process returns
             return self._block(lambda: self.is_running(), block)
         # Daemon process continues here
+        self._debug('Daemon has detached')
 
         def on_sigterm(signum, frame):
+            self._debug('Received SIGTERM signal')
             self._got_sigterm.set()
+
+        # Minimze the risk of missing a SIGTERM by registering our
+        # handler as early as possible after the fork.
+        signal.signal(signal.SIGTERM, on_sigterm)
+        self._debug('Signal handler has been installed')
 
         def runner():
             try:
+                self._debug('Calling `run`')
                 self.run()
+                self._debug('`run` returned without exception')
             except Exception as e:
                 self.logger.exception(e)
             try:
                 self.pid_file.release()
+                self._debug('PID file has been released')
             except Exception as e:
                 self.logger.exception(e)
             os._exit(os.EX_OK)  # FIXME: This seems redundant
 
         try:
             setproctitle.setproctitle(self.name)
+            self._debug('Process title has been set')
             self.pid_file.acquire(timeout=0)
+            self._debug('PID file has been acquired')
             files_preserve = (self.files_preserve +
                               self._get_logger_file_handles())
             with DaemonContext(
@@ -350,6 +376,8 @@ class Service(object):
                         signal.SIGTERM: on_sigterm,
                     },
                     files_preserve=files_preserve):
+                self._debug('Daemon context has been established')
+
                 # Python's signal handling mechanism only forwards signals to
                 # the main thread and only when that thread is doing something
                 # (e.g. not when it's waiting for a lock, etc.). If we use the
