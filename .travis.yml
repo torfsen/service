@@ -8,8 +8,9 @@ python:
     - "3.6"
 
 install:
+    - pip install --upgrade pip setuptools
     - pip install -r dev-requirements.txt
-    - python setup.py develop
+    - pip install -e .
 
 script: python runtests.py
 
