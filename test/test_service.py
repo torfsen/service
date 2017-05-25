@@ -319,28 +319,17 @@ class TestService(object):
         """
         service.Service(NAME).start()
 
-    def test_log_exception_in_run(self):
+    def test_exception_in_run(self):
         """
-        Test exception logging for errors in ``run``.
+        Test that exceptions in ``run`` are handled correctly.
         """
         def run(service):
             service.logger.addHandler(logging.FileHandler(self.logfile.name))
             raise Exception('FOOBAR')
-        service = CallbackService(run)
-        service.start()
-        time.sleep(DELAY)
+        CallbackService(run).start(block=DELAY)
         assert_not_running()
-        self.assert_log_contains('FOOBAR')
-
-    def test_exception_in_run_removes_pid_file(self):
-        """
-        Test that the PID file is removed if there's an exception in ``run``.
-        """
-        def run(service):
-            raise Exception('FOOBAR')
-        CallbackService(run).start()
-        time.sleep(DELAY)
         ok(not pid_file_exists())
+        self.assert_log_contains('FOOBAR')
 
     def test_files_preserve(self):
         """
