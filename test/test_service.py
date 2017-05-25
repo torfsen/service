@@ -100,7 +100,9 @@ class BasicService(service.Service):
     def __init__(self):
         super(BasicService, self).__init__(NAME, pid_dir=PID_DIR)
         self.logger.handlers[:] = []
+        formatter = logging.Formatter('%(created)f: %(message)s')
         handler = logging.FileHandler(LOG_FILE)
+        handler.setFormatter(formatter)
         self.logger.addHandler(handler)
         self.logger.setLevel(service.SERVICE_DEBUG)
 
@@ -215,6 +217,7 @@ class TestService(object):
 
     def teardown(self):
         service = BasicService()
+        service._debug('teardown')
         try:
             service.kill()
         except ValueError:
