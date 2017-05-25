@@ -54,7 +54,7 @@ except OSError as e:
 
 PID_DIR = '/tmp'
 
-DELAY = 10
+DELAY = 5
 
 
 def is_running():
