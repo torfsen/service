@@ -161,24 +161,17 @@ class FailingService(BasicService):
 
 class CallbackService(BasicService):
     """
-    A service that calls callbacks in ``run`` and ``on_stop``.
+    A service that calls a callback in ``run``.
     """
-    def __init__(self, run=None, on_stop=None, *args, **kwargs):
+    def __init__(self, run=None, *args, **kwargs):
         super(CallbackService, self).__init__(*args, **kwargs)
         self._run_callback = run
-        self._on_stop_callback = on_stop
 
     def run(self):
         self.logger.info('start')
         if self._run_callback:
             self._run_callback(self)
         self.logger.info('end')
-
-    def on_stop(self):
-        self.logger.info('on_stop start')
-        if self._on_stop_callback:
-            self._on_stop_callback(self)
-        self.logger.info('on_stop end')
 
 
 def start(service):
