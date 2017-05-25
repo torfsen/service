@@ -341,13 +341,13 @@ class Service(object):
             self._debug('Received SIGTERM signal')
             self._got_sigterm.set()
 
-        # Minimze the risk of missing a SIGTERM by registering our
-        # handler as early as possible after the fork.
-        signal.signal(signal.SIGTERM, on_sigterm)
-        self._debug('Signal handler has been installed')
-
         def runner():
             try:
+                # We acquire the PID as late as possible, since its
+                # existence is used to verify whether the service
+                # is running.
+                self.pid_file.acquire(timeout=0)
+                self._debug('PID file has been acquired')
                 self._debug('Calling `run`')
                 self.run()
                 self._debug('`run` returned without exception')
@@ -363,8 +363,6 @@ class Service(object):
         try:
             setproctitle.setproctitle(self.name)
             self._debug('Process title has been set')
-            self.pid_file.acquire(timeout=0)
-            self._debug('PID file has been acquired')
             files_preserve = (self.files_preserve +
                               self._get_logger_file_handles())
             with DaemonContext(
