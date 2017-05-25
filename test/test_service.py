@@ -39,6 +39,8 @@ import psutil
 
 import service
 
+from .helpers import get_current_case
+
 
 NAME = 'python-service-test-daemon'
 
@@ -86,6 +88,7 @@ class BasicService(service.Service):
     """
     def __init__(self):
         super(BasicService, self).__init__(NAME, pid_dir='/tmp')
+        self.logger.handlers[:] = []
         handler = logging.FileHandler(LOG_FILE)
         self.logger.addHandler(handler)
         self.logger.setLevel(logging.DEBUG)
@@ -108,7 +111,9 @@ class WaitingService(BasicService):
     Test service that waits until shutdown via SIGTERM.
     """
     def run(self):
+        self.logger.info('start')
         self.wait_for_sigterm()
+        self.logger.info('end')
 
 
 class ForeverService(BasicService):
@@ -116,6 +121,7 @@ class ForeverService(BasicService):
     A service that runs forever.
     """
     def run(self):
+        self.logger.info('start')
         while True:
             time.sleep(1)
 
@@ -164,12 +170,16 @@ class CallbackService(BasicService):
         self._on_stop_callback = on_stop
 
     def run(self):
+        self.logger.info('start')
         if self._run_callback:
             self._run_callback(self)
+        self.logger.info('end')
 
     def on_stop(self):
+        self.logger.info('on_stop start')
         if self._on_stop_callback:
             self._on_stop_callback(self)
+        self.logger.info('on_stop end')
 
 
 def start(service):
@@ -196,6 +206,8 @@ class TestService(object):
         ok(text in self.get_log(), msg)
 
     def setup(self):
+        with open(LOG_FILE, 'a') as f:
+            f.write('\n\n{}\n'.format(get_current_case()))
         service = BasicService()
         try:
             service.kill()
@@ -375,5 +387,5 @@ class TestService(object):
             with open(service.f.name, 'r') as f:
                 ok('foobar' in f.read())
         finally:
-            os.unlink(f.name)
+            os.unlink(service.f.name)
 
