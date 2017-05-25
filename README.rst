@@ -1,5 +1,9 @@
 Python background services made easy
 ####################################
+
+.. image:: https://travis-ci.org/torfsen/service.svg?branch=master
+   :target: https://travis-ci.org/torfsen/service
+
 The Python ``service`` package makes it easy to write Unix *services*, i.e.
 background processes ("daemons") that are controlled by a foreground
 application (e.g. a console script)::
