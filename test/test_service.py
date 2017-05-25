@@ -180,6 +180,11 @@ def start(service):
     """
     ok(service.start(block=DELAY))
     assert_running()
+
+    # Make sure that the service has not only started but has also
+    # begun running its ``run`` method
+    time.sleep(DELAY)
+
     return service
 
 
