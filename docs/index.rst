@@ -23,6 +23,8 @@ pip_::
 
     pip install service
 
+Supported Python versions are 2.7 as well as 3.3 and later.
+
 .. _PyPI: https://pypi.python.org/pypi/service
 .. _pip: https://pip.pypa.io/
 
