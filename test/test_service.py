@@ -56,6 +56,10 @@ PID_DIR = '/tmp'
 
 DELAY = 5
 
+# Timeout for waiting for a service to start/stop. Rather high because
+# on Travis services sometimes take ages to start.
+TIMEOUT = 20
+
 
 def is_running():
     """
@@ -189,13 +193,8 @@ def start(service):
     """
     Start a service and wait until it's running.
     """
-    ok(service.start(block=DELAY))
+    ok(service.start(block=TIMEOUT))
     assert_running()
-
-    # Make sure that the service has not only started but has also
-    # begun running its ``run`` method
-    time.sleep(DELAY)
-
     return service
 
 
@@ -246,13 +245,13 @@ class TestService(object):
         """
         Test ``Service.start`` with a timeout.
         """
-        ok(WaitingService().start(block=DELAY))
+        ok(WaitingService().start(block=TIMEOUT))
 
     def test_start_timeout_fail(self):
         """
         Test ``Service.start`` with a timeout and a failing daemon.
         """
-        ok(not FailingService().start(block=DELAY))
+        ok(not FailingService().start(block=TIMEOUT))
 
     def test_stop(self):
         """
@@ -266,29 +265,20 @@ class TestService(object):
         """
         Test ``Service.stop`` with a timeout.
         """
-        ok(start(WaitingService()).stop(block=DELAY))
+        ok(start(WaitingService()).stop(block=TIMEOUT))
 
     def test_stop_timeout_fail(self):
         """
         Test ``Service.stop`` with a timeout and stuck daemon.
         """
-        ok(not start(ForeverService()).stop(block=DELAY))
+        ok(not start(ForeverService()).stop(block=TIMEOUT))
 
     def test_kill(self):
         """
         Test ``Service.kill``.
         """
         start(ForeverService()).kill()
-        time.sleep(DELAY)
         assert_not_running()
-
-    def test_kill_removes_pid_file(self):
-        """
-        Test that ``kill`` removes the PID file.
-        """
-        start(ForeverService()).kill()
-        time.sleep(DELAY)
-        start(ForeverService())
 
     @raises(ValueError)
     def test_stop_not_running(self):
@@ -318,7 +308,6 @@ class TestService(object):
         service = WaitingService()
         ok(not service.is_running())
         start(service)
-        time.sleep(DELAY)
         ok(service.is_running())
 
     @raises(lockfile.LockFailed)
@@ -335,7 +324,7 @@ class TestService(object):
         def run(service):
             service.logger.addHandler(logging.FileHandler(self.logfile.name))
             raise Exception('FOOBAR')
-        CallbackService(run).start(block=DELAY)
+        CallbackService(run).start(block=TIMEOUT)
         assert_not_running()
         ok(not pid_file_exists())
         self.assert_log_contains('FOOBAR')
@@ -357,7 +346,7 @@ class TestService(object):
         service = FileHandleService()
         start(service)
         try:
-            service.stop(block=DELAY)
+            service.stop(block=TIMEOUT)
             ok(os.path.isfile(service.f.name))
             with open(service.f.name, 'r') as f:
                 eq(f.read(), 'foobar')
@@ -381,7 +370,7 @@ class TestService(object):
         service = LoggingService()
         start(service)
         try:
-            service.stop(block=DELAY)
+            service.stop(block=TIMEOUT)
             ok(os.path.isfile(service.f.name))
             with open(service.f.name, 'r') as f:
                 ok('foobar' in f.read())
