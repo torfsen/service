@@ -377,3 +377,13 @@ class TestService(object):
         finally:
             os.unlink(service.f.name)
 
+    def test_sys_exit(self):
+        """
+        Test that sys.exit is handled correctly.
+        """
+        def run(service):
+            import sys
+            sys.exit()
+        CallbackService(run).start(block=TIMEOUT)
+        assert_not_running()
+

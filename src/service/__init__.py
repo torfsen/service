@@ -353,6 +353,8 @@ class Service(object):
                 self._debug('`run` returned without exception')
             except Exception as e:
                 self.logger.exception(e)
+            except SystemExit:
+                self._debug('`run` called `sys.exit`')
             try:
                 self.pid_file.release()
                 self._debug('PID file has been released')
