@@ -99,12 +99,21 @@ class BasicService(service.Service):
     """
     def __init__(self):
         super(BasicService, self).__init__(NAME, pid_dir=PID_DIR)
-        self.logger.handlers[:] = []
         formatter = logging.Formatter('%(created)f: %(message)s')
         handler = logging.FileHandler(LOG_FILE)
         handler.setFormatter(formatter)
-        self.logger.addHandler(handler)
+        self.logger.handlers[:] = [handler]
         self.logger.setLevel(service.SERVICE_DEBUG)
+
+    def start(self, block=False):
+        value = super(BasicService, self).start(block=block)
+        self._debug('start(block={}) returns {}'.format(block, value))
+        return value
+
+    def stop(self, block=False):
+        value = super(BasicService, self).stop(block=block)
+        self._debug('stop(block={}) returns {}'.format(block, value))
+        return value
 
 
 class WaitingService(BasicService):
