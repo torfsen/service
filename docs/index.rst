@@ -130,6 +130,19 @@ handles used by any built-in Python logging handlers attached to
 :py:attr:`~service.Service.logger` are automatically preserved.
 
 
+Exiting the Service
+===================
+From the outside, a service can be stopped gracefully by calling
+:py:meth:`~service.Service.stop` or, as a last resort, by calling
+:py:meth:`~service.Service.kill`.
+
+From the inside, i.e. from within :py:meth:`~service.Service.run`, the easiest
+way is to just ``return`` from the method. From version 0.5 on you can also
+call ``sys.exit`` and it will be handled correctly (in earlier versions that
+would prevent a correct clean up). Note that you should never use ``os._exit``,
+since that skips all clean up.
+
+
 API Reference
 =============
 
