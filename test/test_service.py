@@ -185,8 +185,7 @@ def start(service):
     """
     Start a service and wait until it's running.
     """
-    service.start()
-    time.sleep(DELAY)
+    ok(service.start(block=DELAY))
     assert_running()
     return service
 
