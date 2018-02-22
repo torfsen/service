@@ -63,6 +63,8 @@ def _detach_process():
     pid = os.fork()
     if pid > 0:
         # Parent process
+        # Use waitpid to "collect" the child process and avoid Zombies
+        os.waitpid(pid, 0)
         return True
     os.setsid()
     # We now fork a second time and let the second's fork parent exit.
