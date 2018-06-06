@@ -57,7 +57,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'python-service'
-copyright = u'2015, Florian Brucker'
+copyright = u'2014-2018 Florian Brucker'
 author = u'Florian Brucker'
 
 # The version info for the project you're documenting, acts as replacement for
