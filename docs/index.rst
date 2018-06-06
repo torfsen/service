@@ -158,24 +158,7 @@ The code for this package can be found `on GitHub <https://github.com/torfuspoly
 It is available under the `MIT license <http://opensource.org/licenses/MIT>`_.
 
 
-History
-=======
-:0.4.1:
-    * Support for Python 3
-
-:0.4.0:
-    * More flexible logging interface
-
-:0.3.0:
-    * Support for additional Syslog variants
-    * Optional ``block`` parameter for ``Service.start`` and ``Service.stop``
-
-:0.2.0:
-    * Easier mechanism for handling the stopping of the service
-
-:0.1.1:
-    * Improved error handling
-
-:0.1.0:
-    * Initial release
+Change Log
+==========
+See the file `CHANGELOG.md <https://github.com/torfsen/service/blob/master/CHANGELOG.md`_.
 
