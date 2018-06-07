@@ -17,6 +17,7 @@ The format of this file is based on [Keep a Changelog] and this project adheres 
 - Use the `pid` module instead of the the deprecated `lockfile` module. As a
   result, `Service.start` now raises `IOError` when it has insufficient
   permissions to write to `pid_dir`.
+- The minimum versions of the package's dependencies are now pinned
 
 ### Removed
 

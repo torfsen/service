@@ -20,7 +20,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-import codecs
+import io
 import os.path
 import pydoc
 import re
@@ -34,7 +34,7 @@ SOURCE_FILE = os.path.join(HERE, 'src', 'service', '__init__.py')
 version = None
 in_doc_str = False
 doc_lines = []
-with codecs.open(SOURCE_FILE, encoding='utf8') as f:
+with io.open(SOURCE_FILE, encoding='utf8') as f:
     for line in f:
         s = line.strip()
         m = re.match(r"""__version__\s*=\s*['"](.*)['"]""", line)
@@ -52,6 +52,10 @@ if not version:
     raise RuntimeError('Could not extract version from "%s".' % SOURCE_FILE)
 if not doc_lines:
     raise RuntimeError('Could not extract doc string from "%s".' % SOURCE_FILE)
+
+
+with io.open(os.path.join(HERE, 'requirements.txt'), encoding='utf-8') as f:
+    requirements = f.readlines()
 
 long_description = """
 This package makes it easy to write Unix services, i.e. background
@@ -87,5 +91,5 @@ setup(
 
     packages=find_packages('src'),
     package_dir={'': 'src'},
-    install_requires='python-daemon pid setproctitle'.split(),
+    install_requires=requirements,
 )

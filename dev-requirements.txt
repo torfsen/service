@@ -1,5 +1,6 @@
-tox
-sphinx
-nose
 coverage
+nose
+pip-tools
 psutil
+Sphinx
+tox
