@@ -33,7 +33,6 @@ import tempfile
 import threading
 import time
 
-import lockfile
 from nose.tools import eq_ as eq, ok_ as ok, raises
 import psutil
 
@@ -310,7 +309,7 @@ class TestService(object):
         start(service)
         ok(service.is_running())
 
-    @raises(lockfile.LockFailed)
+    @raises(IOError)
     def test_no_lock_permissions(self):
         """
         Test starting a service without necessary permissions.

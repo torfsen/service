@@ -32,7 +32,7 @@ import threading
 import time
 
 from daemon import DaemonContext
-import lockfile.pidlockfile
+from pid import PidFile
 import setproctitle
 
 
@@ -78,24 +78,47 @@ def _detach_process():
     return False
 
 
-class _PIDFile(lockfile.pidlockfile.PIDLockFile):
+class _PIDFile(object):
     """
-    A locked PID file.
+    A lock file that stores the PID of the owning process.
 
-    This is basically ``lockfile.pidlockfile.PIDLockfile``, with the
-    small modification that the PID is obtained only when the lock is
-    acquired. This makes sure that the PID in the PID file is always
-    that of the process that actually acquired the lock (even if the
-    instance was created in another process, for example before
-    forking).
+    The PID is stored when the lock is acquired, not when it is created.
     """
-    def __init__(self, *args, **kwargs):
-        lockfile.pidlockfile.PIDLockFile.__init__(self, *args, **kwargs)
-        self.pid = None
+    def __init__(self, path):
+        self._path = path
+        self._lock = None
 
-    def acquire(self, *args, **kwargs):
-        self.pid = os.getpid()
-        return lockfile.pidlockfile.PIDLockFile.acquire(self, *args, **kwargs)
+    def _make_lock(self):
+        directory, filename = os.path.split(self._path)
+        return PidFile(filename, directory, register_term_signal_handler=False)
+
+    def acquire(self):
+        self._make_lock().create()
+
+    def release(self):
+        self._make_lock().close()
+        try:
+            os.remove(self._path)
+        except OSError as e:
+            if e.errno != errno.ENOENT:
+                raise
+
+    def read_pid(self):
+        """
+        Return the PID of the process owning the lock.
+
+        Returns ``None`` if no lock is present.
+        """
+        try:
+            with open(self._path, 'r') as f:
+                s = f.read().strip()
+                if not s:
+                    return None
+                return int(s)
+        except IOError as e:
+            if e.errno == errno.ENOENT:
+                return None
+            raise
 
 
 def find_syslog():
@@ -268,7 +291,7 @@ class Service(object):
             if e.errno == errno.ESRCH:
                 raise ValueError('Daemon is not running.')
         finally:
-            self.pid_file.break_lock()
+            self.pid_file.release()
 
     def _block(self, predicate, timeout):
         """
@@ -320,12 +343,9 @@ class Service(object):
         # requires root privileges. Since not having these is a common
         # problem we check a priori whether we can create the lock file.
         try:
-            self.pid_file.acquire(timeout=0)
+            self.pid_file.acquire()
         finally:
-            try:
-                self.pid_file.release()
-            except lockfile.NotLocked:
-                pass
+            self.pid_file.release()
 
         # Clear previously received SIGTERMs. This must be done before
         # the calling process returns so that the calling process can
@@ -348,7 +368,7 @@ class Service(object):
                 # We acquire the PID as late as possible, since its
                 # existence is used to verify whether the service
                 # is running.
-                self.pid_file.acquire(timeout=0)
+                self.pid_file.acquire()
                 self._debug('PID file has been acquired')
                 self._debug('Calling `run`')
                 self.run()

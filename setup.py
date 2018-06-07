@@ -87,5 +87,5 @@ setup(
 
     packages=find_packages('src'),
     package_dir={'': 'src'},
-    install_requires='python-daemon lockfile setproctitle'.split(),
+    install_requires='python-daemon pid setproctitle'.split(),
 )

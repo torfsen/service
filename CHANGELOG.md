@@ -12,6 +12,12 @@ The format of this file is based on [Keep a Changelog] and this project adheres 
 - Reduce time between lock file acquisition and call of `run`
 - Handle `sys.exit` calls in `run`
 
+### Changed
+
+- Use the `pid` module instead of the the deprecated `lockfile` module. As a
+  result, `Service.start` now raises `IOError` when it has insufficient
+  permissions to write to `pid_dir`.
+
 ### Removed
 
 - Support for Python 3.3
