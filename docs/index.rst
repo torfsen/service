@@ -154,7 +154,7 @@ API Reference
 
 Development
 ===========
-The code for this package can be found `on GitHub <https://github.com/torfuspolymorphus/service>`_.
+The code for this package can be found `on GitHub <https://github.com/torfsen/service>`_.
 It is available under the `MIT license <http://opensource.org/licenses/MIT>`_.
 
 

@@ -67,7 +67,7 @@ setup(
     name='service',
     description='Easy Implementation of Background Services',
     long_description=long_description,
-    url='https://github.com/torfuspolymorphus/service',
+    url='https://github.com/torfsen/service',
     version=version,
     license='MIT',
     keywords='service daemon'.split(),
