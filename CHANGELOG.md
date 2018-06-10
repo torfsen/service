@@ -5,6 +5,11 @@ The format of this file is based on [Keep a Changelog] and this project adheres 
 
 ## [Unreleased]
 
+### Fixed
+
+- Unpinned the dependency versions. They were accidentally pinned in version
+  0.5.0. Their minimum versions are still pinned, as intended.
+
 ### Added
 
 - Support for blocking until the daemon process has exited after calling
