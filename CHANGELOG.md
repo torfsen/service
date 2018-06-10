@@ -3,6 +3,14 @@
 The format of this file is based on [Keep a Changelog] and this project adheres to [Semantic Versioning].
 
 
+## [Unreleased]
+
+### Added
+
+- Support for blocking until the daemon process has exited after calling
+  `Service.kill`
+
+
 ## [0.5.0] (2018-06-09)
 
 ### Fixed

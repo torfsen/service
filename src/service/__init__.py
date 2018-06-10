@@ -137,6 +137,29 @@ def find_syslog():
     return ('127.0.0.1', 514)
 
 
+def _block(predicate, timeout):
+    """
+    Block until a predicate becomes true.
+
+    ``predicate`` is a function taking no arguments. The call to
+    ``_block`` blocks until ``predicate`` returns a true value. This
+    is done by polling ``predicate``.
+
+    ``timeout`` is either ``True`` (block indefinitely) or a timeout
+    in seconds.
+
+    The return value is the value of the predicate after the
+    timeout.
+    """
+    if timeout:
+        if timeout is True:
+            timeout = float('Inf')
+        timeout = time.time() + timeout
+        while not predicate() and time.time() < timeout:
+            time.sleep(0.1)
+    return predicate()
+
+
 class Service(object):
     """
     A background service.
@@ -207,7 +230,23 @@ class Service(object):
         """
         Check if the daemon is running.
         """
-        return self.get_pid() is not None
+        pid = self.get_pid()
+        if pid is None:
+            return False
+        # The PID file may still exist even if the daemon isn't running,
+        # for example if it has crashed.
+        try:
+            os.kill(pid, 0)
+        except OSError as e:
+            if e.errno == errno.ESRCH:
+                # In this case the PID file shouldn't have existed in
+                # the first place, so we remove it
+                self.pid_file.release()
+                return False
+            # We may also get an exception if we're not allowed to use
+            # kill on the process, but that means that the process does
+            # exist, which is all we care about here.
+        return True
 
     def get_pid(self):
         """
@@ -271,49 +310,43 @@ class Service(object):
         if not pid:
             raise ValueError('Daemon is not running.')
         os.kill(pid, signal.SIGTERM)
-        return self._block(lambda: not self.is_running(), block)
+        return _block(lambda: not self.is_running(), block)
 
-    def kill(self):
+    def kill(self, block=False):
         """
         Kill the daemon process.
 
         Sends the SIGKILL signal to the daemon process, killing it. You
         probably want to try :py:meth:`stop` first.
 
-        After the process is killed its PID file is removed.
+        If ``block`` is true then the call blocks until the daemon
+        process has exited. ``block`` can either be ``True`` (in which
+        case it blocks indefinitely) or a timeout in seconds.
+
+        Returns ``True`` if the daemon process has (already) exited and
+        ``False`` otherwise.
+
+        The PID file is always removed, whether the process has already
+        exited or not. Note that this means that subsequent calls to
+        :py:meth:`is_running` and :py:meth:`get_pid` will behave as if
+        the process has exited. If you need to be sure that the process
+        has already exited, set ``block`` to ``True``.
+
+        .. versionadded:: 0.5.1
+            The ``block`` parameter
         """
         pid = self.get_pid()
         if not pid:
             raise ValueError('Daemon is not running.')
         try:
             os.kill(pid, signal.SIGKILL)
+            return _block(lambda: not self.is_running(), block)
         except OSError as e:
             if e.errno == errno.ESRCH:
                 raise ValueError('Daemon is not running.')
+            raise
         finally:
             self.pid_file.release()
-
-    def _block(self, predicate, timeout):
-        """
-        Block until a predicate becomes true.
-
-        ``predicate`` is a function taking no arguments. The call to
-        ``_block`` blocks until ``predicate`` returns a true value. This
-        is done by polling ``predicate``.
-
-        ``timeout`` is either ``True`` (block indefinitely) or a timeout
-        in seconds.
-
-        The return value is the value of the predicate after the
-        timeout.
-        """
-        if timeout:
-            if timeout is True:
-                timeout = float('Inf')
-            timeout = time.time() + timeout
-            while not predicate() and time.time() < timeout:
-                time.sleep(0.1)
-        return predicate()
 
     def start(self, block=False):
         """
@@ -355,7 +388,7 @@ class Service(object):
 
         if _detach_process():
             # Calling process returns
-            return self._block(lambda: self.is_running(), block)
+            return _block(lambda: self.is_running(), block)
         # Daemon process continues here
         self._debug('Daemon has detached')
 

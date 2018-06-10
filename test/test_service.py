@@ -28,10 +28,16 @@ import errno
 import logging
 import os
 import os.path
+import signal
 import sys
 import tempfile
 import threading
 import time
+
+try:
+    import unittest.mock as mock
+except ImportError:
+    import mock
 
 from nose.tools import eq_ as eq, ok_ as ok, raises
 import psutil
@@ -60,14 +66,31 @@ DELAY = 5
 TIMEOUT = 20
 
 
+def get_processes():
+    """
+    Return a list of all processes of the test service.
+    """
+    return [p for p in psutil.process_iter() if p.name() == NAME]
+
+
+def kill_processes():
+    """
+    Kill all test service processes and remove the PID file.
+    """
+    for process in get_processes():
+        process.kill()
+    try:
+        os.remove(os.path.join(PID_DIR, NAME + '.pid'))
+    except OSError as e:
+        if e.errno != errno.ENOENT:
+            raise
+
+
 def is_running():
     """
     Check if the test daemon is running.
     """
-    for process in psutil.process_iter():
-        if process.name() == NAME:
-            return True
-    return False
+    return bool(get_processes())
 
 
 def pid_file_exists():
@@ -213,22 +236,13 @@ class TestService(object):
     def setup(self):
         with open(LOG_FILE, 'a') as f:
             f.write('\n\n{}\n'.format(get_current_case()))
-        service = BasicService()
-        try:
-            service.kill()
-        except ValueError:
-            pass
+        kill_processes()
         self.logfile = tempfile.NamedTemporaryFile(delete=False)
         self.logfile.close()
         self.handler = logging.FileHandler(self.logfile.name)
 
     def teardown(self):
-        service = BasicService()
-        service._debug('teardown')
-        try:
-            service.kill()
-        except ValueError:
-            pass
+        kill_processes()
         try:
             os.unlink(self.logfile.name)
         except OSError:
@@ -250,7 +264,7 @@ class TestService(object):
         """
         Test ``Service.start`` with a timeout and a failing daemon.
         """
-        ok(not FailingService().start(block=TIMEOUT))
+        ok(not FailingService().start(block=0.1))
 
     def test_stop(self):
         """
@@ -270,7 +284,7 @@ class TestService(object):
         """
         Test ``Service.stop`` with a timeout and stuck daemon.
         """
-        ok(not start(ForeverService()).stop(block=TIMEOUT))
+        ok(not start(ForeverService()).stop(block=0.1))
 
     def test_kill(self):
         """
@@ -279,6 +293,26 @@ class TestService(object):
         start(ForeverService()).kill()
         time.sleep(DELAY)
         assert_not_running()
+
+    def test_kill_timeout_ok(self):
+        """
+        Test ``Service.kill`` with a timeout.
+        """
+        ok(start(ForeverService()).kill(block=TIMEOUT))
+        assert_not_running()
+
+    def test_kill_timeout_fail(self):
+        """
+        Test ``Service.kill`` with too short a timeout.
+        """
+        os_kill = os.kill
+
+        def kill_mock(pid, sig):
+            if sig != signal.SIGKILL:
+                return os_kill(pid, sig)
+
+        with mock.patch('os.kill', side_effect=kill_mock):
+            ok(not start(ForeverService()).kill(block=0.1))
 
     @raises(ValueError)
     def test_stop_not_running(self):
