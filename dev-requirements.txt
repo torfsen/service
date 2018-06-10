@@ -1,6 +1,5 @@
 coverage
 nose
-pip-tools
 psutil
 Sphinx
 tox
