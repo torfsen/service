@@ -277,6 +277,7 @@ class TestService(object):
         Test ``Service.kill``.
         """
         start(ForeverService()).kill()
+        time.sleep(DELAY)
         assert_not_running()
 
     @raises(ValueError)
