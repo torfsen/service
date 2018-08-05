@@ -181,7 +181,7 @@ class Service(object):
         attached to :py:attr:`logger` are automatically preserved.
     """
 
-    def __init__(self, name, pid_dir='/var/run'):
+    def __init__(self, name, pid_dir='/var/run', **dameon_context_args):
         """
         Constructor.
 
@@ -198,6 +198,7 @@ class Service(object):
         if not self.logger.handlers:
             self.logger.addHandler(logging.NullHandler())
         self.files_preserve = []
+        self.daemon_context_args = dameon_context_args
 
     def _debug(self, msg):
         """
@@ -422,15 +423,15 @@ class Service(object):
             self._debug('Process title has been set')
             files_preserve = (self.files_preserve +
                               self._get_logger_file_handles())
-            with DaemonContext(
-                    detach_process=False,
-                    signal_map={
-                        signal.SIGTTIN: None,
-                        signal.SIGTTOU: None,
-                        signal.SIGTSTP: None,
-                        signal.SIGTERM: on_sigterm,
-                    },
-                    files_preserve=files_preserve):
+            self.daemon_context_args['files_preserve'] = files_preserve
+            self.daemon_context_args['detach_process'] = False
+            self.daemon_context_args['signal_map'] = {
+                signal.SIGTTIN: None,
+                signal.SIGTTOU: None,
+                signal.SIGTSTP: None,
+                signal.SIGTERM: on_sigterm,
+            }
+            with DaemonContext(**self.daemon_context_args):
                 self._debug('Daemon context has been established')
 
                 # Python's signal handling mechanism only forwards signals to
