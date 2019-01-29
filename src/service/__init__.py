@@ -270,16 +270,18 @@ class Service(object):
         """
         return self.pid_file.read_pid()
 
-    def set_signal(self, sig_symbol):
+    def send_signal(self, sig_symbol):
         """
-        Set an operating system signal.
+        Sends an operating system signal to the service.
 
         Returns ``True`` if the signal is configured, else ``False``
         """
         sig_num = int(sig_symbol)
         if sig_num in self.signal_state:
-            self.signal_state[sig_num].set()
-            return True
+            pid = self.get_pid()
+            if not pid:
+                raise ValueError('Daemon is not running.')
+            os.kill(pid, sig_symbol)
         else:
             return False
 
@@ -396,10 +398,7 @@ class Service(object):
         .. versionadded:: 0.3
             The ``block`` parameter
         """
-        pid = self.get_pid()
-        if not pid:
-            raise ValueError('Daemon is not running.')
-        os.kill(pid, signal.SIGTERM)
+        self.send_signal(signal.SIGTERM)
         return _block(lambda: not self.is_running(), block)
 
     def kill(self, block=False):
