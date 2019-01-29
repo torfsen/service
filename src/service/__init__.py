@@ -199,18 +199,17 @@ class Service(object):
         """
         self.name = name
         self.pid_file = _PIDFile(os.path.join(pid_dir, name + '.pid'))
-        self.signal_state = dict()
+        # handlers for signals will be passed a integer value representing the
+        # signal. Pyhton 3 defines signals as enum.Enum objects, but the
+        # integer value of the enum must be stored.
+        self.signal_state = {
+            int(signal.SIGTERM): threading.Event()
+        }
         if additional_signals is not None:
             if not hasattr(additional_signals, "__iter__"):
-                additional_signals = list(additional_signals)
-            for signum in additional_signals:
-                self.signal_state[signum] = threading.Event()
-        if signal.SIGTERM not in self.signal_state:
-            self.signal_state[signal.SIGTERM] = threading.Event()
-
-
-
-        self._got_sigterm = threading.Event()
+                additional_signals = set(additional_signals)
+            for sig_symbol in additional_signals:
+                self.signal_state[int(sig_symbol)] = threading.Event()
         self.logger = logging.getLogger(name)
         if not self.logger.handlers:
             self.logger.addHandler(logging.NullHandler())
@@ -271,6 +270,80 @@ class Service(object):
         """
         return self.pid_file.read_pid()
 
+    def set_signal(self, sig_symbol):
+        """
+        Set an operating system signal.
+
+        Returns ``True`` if the signal is configured, else ``False``
+        """
+        sig_num = int(sig_symbol)
+        if sig_num in self.signal_state:
+            self.signal_state[sig_num].set()
+            return True
+        else:
+            return False
+
+    def got_signal(self, sig_symbol, clear=False):
+        """
+        Check if an operating system signal was received.
+
+        Returns ``True`` if the daemon process has received the
+        signal (for example because :py:meth:`stop` was called).
+
+        If ``clear`` is True, the signal will be cleared after retrieving the
+        current state. This is useful for "one-time-operations" like reloading
+        a config file.
+
+        .. note::
+            This function always returns ``False`` when it is not called
+            from the daemon process or if the signal is not configured
+        """
+        sig_num = int(sig_symbol)
+        if sig_num in self.signal_state:
+            state = self.signal_state[sig_num].is_set()
+            if clear:
+                self.clear_signal(sig_num)
+            return state
+        else:
+            return False
+
+    def clear_signal(self, sig_symbol):
+        """
+        Clears an operating system signal.
+
+        Returns ``True`` signal is configured, else ``False``
+        """
+        sig_num = int(sig_symbol)
+        if sig_num in self.signal_state:
+            self.signal_state[sig_num].clear()
+            return True
+        else:
+            return False
+
+    def wait_for_signal(self, sig_symbol, timeout=None):
+        """
+        Wait until an operating system signal has been received.
+
+        This function blocks until the daemon process has received the
+        signal (for example because :py:meth:`stop` was called).
+
+        If ``timeout`` is given and not ``None`` it specifies a timeout
+        for the block.
+
+        The return value is ``True`` if the signal was received and
+        ``False`` otherwise (the latter occurs if a timeout was given
+        and the signal was not received, or if the signal is not configured).
+
+        .. warning::
+            This function blocks indefinitely (or until the given
+            timeout) when it is not called from the daemon process.
+        """
+        sig_num = int(sig_symbol)
+        if sig_num in self.signal_state:
+            return self.signal_state[sig_num].wait(timeout)
+        else:
+            return False
+
     def got_sigterm(self):
         """
         Check if SIGTERM signal was received.
@@ -282,7 +355,7 @@ class Service(object):
             This function always returns ``False`` when it is not called
             from the daemon process.
         """
-        return self._got_sigterm.is_set()
+        return self.got_signal(signal.SIGTERM)
 
     def wait_for_sigterm(self, timeout=None):
         """
@@ -302,7 +375,7 @@ class Service(object):
             This function blocks indefinitely (or until the given
             timeout) when it is not called from the daemon process.
         """
-        return self._got_sigterm.wait(timeout)
+        return self.wait_for_signal(signal.SIGTERM, timeout)
 
     def stop(self, block=False):
         """
@@ -401,7 +474,7 @@ class Service(object):
         # the calling process returns so that the calling process can
         # call ``stop`` directly after ``start`` returns without the
         # signal being lost.
-        self._got_sigterm.clear()
+        self.clear_signal(signal.SIGTERM)
 
         if _detach_process():
             # Calling process returns
@@ -409,9 +482,10 @@ class Service(object):
         # Daemon process continues here
         self._debug('Daemon has detached')
 
-        def on_sigterm(signum, frame):
-            self._debug('Received SIGTERM signal')
-            self._got_sigterm.set()
+        def on_signal(signum, frame):
+            self._debug('Received %s signal' % signum)
+            self._debug(type(signum))
+            self.signal_state[int(signum)].set()
 
         def runner():
             try:
@@ -441,7 +515,7 @@ class Service(object):
                               self._get_logger_file_handles())
             signal_map = dict()
             for signum in self.signal_state:
-                signal_map[signum] = on_sigterm
+                signal_map[signum] = on_signal
             dont_capture = {
                     signal.SIGTTIN: None,
                     signal.SIGTTOU: None,
