@@ -67,11 +67,31 @@ DELAY = 5
 TIMEOUT = 20
 
 
+def _is_test_deamon_process(process):
+    """
+    Test if a process is the started daemon process
+
+    On MacOS X "Mojave" (and propably some other versions), setproctitle only
+    changes the set command line argument, but not the process title itself.
+    """
+    if process.name() == NAME:
+        return True
+    elif process.name().lower().startswith("python"):
+        # MacOS X "Mojave" (and propably some other versions):
+        # Accessing the command line arguments of the process will fail
+        # drastically (segfaults) on some circumstances / processes, therefore
+        # it is first checked, if the process is a python process
+        cmd_line = process.cmdline()
+        return cmd_line and cmd_line[0] == NAME
+    else:
+        return False
+
+
 def get_processes():
     """
     Return a list of all processes of the test service.
     """
-    return [p for p in psutil.process_iter() if p.name() == NAME]
+    return [p for p in psutil.process_iter() if _is_test_deamon_process(p)]
 
 
 def kill_processes():
