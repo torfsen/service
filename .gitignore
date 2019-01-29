@@ -1,4 +1,7 @@
-/venv/
+*.swp
+*.pyc
+
+# build and packaging artefacts
 /coverage/
 /dist/
 /src/service.egg-info/
@@ -8,5 +11,9 @@
 /.coverage
 /test/test-*.log
 
-*.swp
-*.pyc
+# virtual environments
+/venv/
+.venv/
+
+# macos stuff
+.DS_Store
