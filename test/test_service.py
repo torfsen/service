@@ -143,8 +143,12 @@ class BasicService(service.Service):
     Sets the service name and uses a temporary directory for PID files
     to avoid the necessity of root privileges.
     """
-    def __init__(self):
-        super(BasicService, self).__init__(NAME, pid_dir=PID_DIR)
+    def __init__(self, additional_signals=None):
+        super(BasicService, self).__init__(
+            NAME,
+            pid_dir=PID_DIR,
+            additional_signals=additional_signals
+        )
         formatter = logging.Formatter('%(created)f: %(message)s')
         handler = logging.FileHandler(LOG_FILE)
         handler.setFormatter(formatter)
@@ -440,4 +444,34 @@ class TestService(object):
             sys.exit()
         CallbackService(run).start(block=TIMEOUT)
         assert_not_running()
+
+    def test_different_signal_captured(self):
+        """
+        Test that signals besides SIGTERM can be used
+        """
+        class SignalService(BasicService):
+            def __init__(self):
+                super(SignalService, self).__init__(
+                    additional_signals=[signal.SIGHUP]
+                )
+                self.f = tempfile.NamedTemporaryFile(delete=False)
+                self.f.close()
+                self.logger.addHandler(logging.FileHandler(self.f.name))
+            def run(self):
+                while not self.got_sigterm():
+                    if self.got_signal(signal.SIGHUP):
+                        self.logger.warn('foobar')
+                    time.sleep(1)
+
+        service = SignalService()
+        start(service)
+        try:
+            service.send_signal(signal.SIGHUP)
+            time.sleep(5)
+            service.stop(block=TIMEOUT)
+            ok(os.path.isfile(service.f.name))
+            with open(service.f.name, 'r') as f:
+                ok('foobar' in f.read())
+        finally:
+            os.unlink(service.f.name)
 
