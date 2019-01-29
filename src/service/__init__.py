@@ -184,7 +184,7 @@ class Service(object):
         attached to :py:attr:`logger` are automatically preserved.
     """
 
-    def __init__(self, name, pid_dir='/var/run'):
+    def __init__(self, name, pid_dir='/var/run', additional_signals=None):
         """
         Constructor.
 
@@ -193,9 +193,23 @@ class Service(object):
         the messages to syslog.
 
         ``pid_dir`` is the directory in which the PID file is stored.
+
+        ``additional_signals`` list of operating signals, that should be
+        captured additionally to the standard SIGTERM signal.
         """
         self.name = name
         self.pid_file = _PIDFile(os.path.join(pid_dir, name + '.pid'))
+        self.signal_state = dict()
+        if additional_signals is not None:
+            if not hasattr(additional_signals, "__iter__"):
+                additional_signals = list(additional_signals)
+            for signum in additional_signals:
+                self.signal_state[signum] = threading.Event()
+        if signal.SIGTERM not in self.signal_state:
+            self.signal_state[signal.SIGTERM] = threading.Event()
+
+
+
         self._got_sigterm = threading.Event()
         self.logger = logging.getLogger(name)
         if not self.logger.handlers:
@@ -425,14 +439,18 @@ class Service(object):
             self._debug('Process title has been set')
             files_preserve = (self.files_preserve +
                               self._get_logger_file_handles())
+            signal_map = dict()
+            for signum in self.signal_state:
+                signal_map[signum] = on_sigterm
+            dont_capture = {
+                    signal.SIGTTIN: None,
+                    signal.SIGTTOU: None,
+                    signal.SIGTSTP: None,
+            }
+            signal_map.update(dont_capture)
             with DaemonContext(
                     detach_process=False,
-                    signal_map={
-                        signal.SIGTTIN: None,
-                        signal.SIGTTOU: None,
-                        signal.SIGTSTP: None,
-                        signal.SIGTERM: on_sigterm,
-                    },
+                    signal_map=signal_map,
                     files_preserve=files_preserve):
                 self._debug('Daemon context has been established')
 
