@@ -86,6 +86,7 @@ The control methods are:
 * :py:meth:`~service.Service.kill` to kill the daemon
 * :py:meth:`~service.Service.is_running` to check whether the daemon is running
 * :py:meth:`~service.Service.get_pid` to get the daemon's process ID
+* :py:meth:`~service.Service.send` to send arbitrary signals to the daemon
 
 Subclasses usually do not need to override any of these.
 
@@ -101,6 +102,12 @@ When :py:meth:`~service.Service.stop` is called, the SIGTERM signal is sent to
 the daemon process, which can check for its reception using
 :py:meth:`~service.Service.got_sigterm` or wait for it using
 :py:meth:`~service.Service.wait_for_sigterm`.
+
+To use further signals to controll the daemon, these have to be specified by
+the ``custom_signals`` argument on instance creation. Custom signals can be
+sent to the daemon using :py:meth:`~service.Service.send_signal`. The daemon
+process can utilize custom signals using :py:meth:`~service.Service.got_signal`
+or :py:meth:`~service.Service.wait_for_signal`.
 
 
 Logging
