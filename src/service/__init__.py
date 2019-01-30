@@ -199,12 +199,12 @@ class Service(object):
         # handlers for signals will be passed a integer value representing the
         # signal. Pyhton 3 defines signals as ``enum.Enum`` objects, but the
         # integer value of the enum must be stored to retrieve the event later.
-        self.signal_state = {
+        self.signal_events = {
             int(signal.SIGTERM): threading.Event()
         }
         if custom_signals is not None:
             for sig_symbol in custom_signals:
-                self.signal_state[int(sig_symbol)] = threading.Event()
+                self.signal_events[int(sig_symbol)] = threading.Event()
         self.logger = logging.getLogger(name)
         if not self.logger.handlers:
             self.logger.addHandler(logging.NullHandler())
@@ -268,16 +268,19 @@ class Service(object):
 
     def send_signal(self, sig_symbol):
         """
-        Sends an arbitrary operating system signal to the daemon process.
+        Sends an preconfigured operating system signal to the daemon process.
 
-        Does not check if the signal is configured. Returns ``True`` if the
-        signal is configured, else ``False``
+        Returns ``True`` if the signal is configured, else ``False``
         """
-        pid = self.get_pid()
-        if not pid:
-            raise ValueError('Daemon is not running.')
-        os.kill(pid, sig_symbol)
-        return int(sig_symbol) in self.signal_state
+        if int(sig_symbol) in self.signal_events:
+            pid = self.get_pid()
+            if not pid:
+                raise ValueError('Daemon is not running.')
+            os.kill(pid, sig_symbol)
+            return True
+        else:
+            return False
+
 
     def got_signal(self, sig_symbol, clear=False):
         """
@@ -295,8 +298,8 @@ class Service(object):
             from the daemon process or if the signal is not configured
         """
         sig_num = int(sig_symbol)
-        if sig_num in self.signal_state:
-            state = self.signal_state[sig_num].is_set()
+        if sig_num in self.signal_events:
+            state = self.signal_events[sig_num].is_set()
             if clear:
                 self.clear_signal(sig_num)
             return state
@@ -310,8 +313,8 @@ class Service(object):
         Returns ``True`` signal is configured, else ``False``
         """
         sig_num = int(sig_symbol)
-        if sig_num in self.signal_state:
-            self.signal_state[sig_num].clear()
+        if sig_num in self.signal_events:
+            self.signal_events[sig_num].clear()
             return True
         else:
             return False
@@ -335,8 +338,8 @@ class Service(object):
             timeout) when it is not called from the daemon process.
         """
         sig_num = int(sig_symbol)
-        if sig_num in self.signal_state:
-            return self.signal_state[sig_num].wait(timeout)
+        if sig_num in self.signal_events:
+            return self.signal_events[sig_num].wait(timeout)
         else:
             return False
 
@@ -478,7 +481,7 @@ class Service(object):
         def on_signal(signum, frame):
             self._debug('Received %s signal' % signum)
             self._debug(type(signum))
-            self.signal_state[int(signum)].set()
+            self.signal_events[int(signum)].set()
 
         def runner():
             try:
@@ -507,7 +510,7 @@ class Service(object):
             files_preserve = (self.files_preserve +
                               self._get_logger_file_handles())
             signal_map = dict()
-            for signum in self.signal_state:
+            for signum in self.signal_events:
                 signal_map[signum] = on_signal
             dont_capture = {
                     signal.SIGTTIN: None,
