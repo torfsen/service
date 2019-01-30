@@ -181,7 +181,7 @@ class Service(object):
         attached to :py:attr:`logger` are automatically preserved.
     """
 
-    def __init__(self, name, pid_dir='/var/run', additional_signals=None):
+    def __init__(self, name, pid_dir='/var/run', custom_signals=None):
         """
         Constructor.
 
@@ -191,26 +191,25 @@ class Service(object):
 
         ``pid_dir`` is the directory in which the PID file is stored.
 
-        ``additional_signals`` list of operating signals, that should be
-        captured additionally to the standard SIGTERM signal.
+        ``custom_signals`` list of operating signals, that should be
+        available additionally to the standard SIGTERM signal.
         """
         self.name = name
         self.pid_file = _PIDFile(os.path.join(pid_dir, name + '.pid'))
         # handlers for signals will be passed a integer value representing the
-        # signal. Pyhton 3 defines signals as enum.Enum objects, but the
-        # integer value of the enum must be stored.
+        # signal. Pyhton 3 defines signals as ``enum.Enum`` objects, but the
+        # integer value of the enum must be stored to retrieve the event later.
         self.signal_state = {
             int(signal.SIGTERM): threading.Event()
         }
-        if additional_signals is not None:
-            if not hasattr(additional_signals, "__iter__"):
-                additional_signals = set(additional_signals)
-            for sig_symbol in additional_signals:
+        if custom_signals is not None:
+            for sig_symbol in custom_signals:
                 self.signal_state[int(sig_symbol)] = threading.Event()
         self.logger = logging.getLogger(name)
         if not self.logger.handlers:
             self.logger.addHandler(logging.NullHandler())
         self.files_preserve = []
+
 
     def _debug(self, msg):
         """
@@ -269,18 +268,16 @@ class Service(object):
 
     def send_signal(self, sig_symbol):
         """
-        Sends an operating system signal to the service.
+        Sends an arbitrary operating system signal to the daemon process.
 
-        Returns ``True`` if the signal is configured, else ``False``
+        Does not check if the signal is configured. Returns ``True`` if the
+        signal is configured, else ``False``
         """
-        sig_num = int(sig_symbol)
-        if sig_num in self.signal_state:
-            pid = self.get_pid()
-            if not pid:
-                raise ValueError('Daemon is not running.')
-            os.kill(pid, sig_symbol)
-        else:
-            return False
+        pid = self.get_pid()
+        if not pid:
+            raise ValueError('Daemon is not running.')
+        os.kill(pid, sig_symbol)
+        return int(sig_symbol) in self.signal_state
 
     def got_signal(self, sig_symbol, clear=False):
         """
