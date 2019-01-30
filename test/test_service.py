@@ -144,11 +144,11 @@ class BasicService(service.Service):
     Sets the service name and uses a temporary directory for PID files
     to avoid the necessity of root privileges.
     """
-    def __init__(self, additional_signals=None):
+    def __init__(self, custom_signals=None):
         super(BasicService, self).__init__(
             NAME,
             pid_dir=PID_DIR,
-            additional_signals=additional_signals
+            custom_signals=custom_signals
         )
         formatter = logging.Formatter('%(created)f: %(message)s')
         handler = logging.FileHandler(LOG_FILE)
@@ -466,7 +466,7 @@ class TestService(object):
         class SignalService(BasicService):
             def __init__(self):
                 super(SignalService, self).__init__(
-                    additional_signals=[signal.SIGHUP]
+                    custom_signals=[signal.SIGHUP]
                 )
                 self.f = tempfile.NamedTemporaryFile(delete=False)
                 self.f.close()
