@@ -348,7 +348,7 @@ class Service(object):
         finally:
             self.pid_file.release()
 
-    def start(self, block=False):
+    def start(self, block=False, **kargs):
         """
         Start the daemon process.
 
@@ -361,6 +361,8 @@ class Service(object):
         If ``block`` is true then the call blocks until the daemon
         process has started. ``block`` can either be ``True`` (in which
         case it blocks indefinitely) or a timeout in seconds.
+
+        Other keyword arguments will be passed on to the ``run()`` method.
 
         The return value is ``True`` if the daemon process has been
         started and ``False`` otherwise.
@@ -404,7 +406,7 @@ class Service(object):
                 self.pid_file.acquire()
                 self._debug('PID file has been acquired')
                 self._debug('Calling `run`')
-                self.run()
+                self.run(**kargs)
                 self._debug('`run` returned without exception')
             except Exception as e:
                 self.logger.exception(e)
@@ -454,7 +456,7 @@ class Service(object):
         # call to ``start``.
         os._exit(os.EX_OK)
 
-    def run(self):
+    def run(self, **kargs):
         """
         Main daemon method.
 

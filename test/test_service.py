@@ -151,8 +151,8 @@ class BasicService(service.Service):
         self.logger.handlers[:] = [handler]
         self.logger.setLevel(service.SERVICE_DEBUG)
 
-    def start(self, block=False):
-        value = super(BasicService, self).start(block=block)
+    def start(self, block=False, **kargs):
+        value = super(BasicService, self).start(block=block, **kargs)
         self._debug('start(block={}) returns {}'.format(block, value))
         return value
 
@@ -231,11 +231,11 @@ class CallbackService(BasicService):
         self.logger.info('end')
 
 
-def start(service):
+def start(service, **kargs):
     """
     Start a service and wait until it's running.
     """
-    ok(service.start(block=TIMEOUT))
+    ok(service.start(block=TIMEOUT, **kargs))
     assert_running()
     return service
 
@@ -430,6 +430,30 @@ class TestService(object):
                 ok('foobar' in f.read())
         finally:
             os.unlink(service.f.name)
+
+    def test_start_keyword_arguments(self):
+        """
+        Test keyword arguments passed to start() are forwarded to run()
+        """
+        class FileHandleService(BasicService):
+            def __init__(self):
+                super(FileHandleService, self).__init__()
+                self.f = tempfile.NamedTemporaryFile(mode='wt', delete=False)
+                self.files_preserve = [self.f]
+            def run(self, content=""):
+                self.f.write(content)
+                self.f.close()
+                self.wait_for_sigterm()
+
+        service = FileHandleService()
+        start(service, content="keyword argumend passed")
+        try:
+            service.stop(block=TIMEOUT)
+            ok(os.path.isfile(service.f.name))
+            with open(service.f.name, 'r') as f:
+                eq(f.read(), "keyword argumend passed")
+        finally:
+            os.unlink(f.name)
 
     def test_sys_exit(self):
         """
