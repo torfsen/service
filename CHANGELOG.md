@@ -1,6 +1,15 @@
 # Change Log for the `service` Python Package
 
-The format of this file is based on [Keep a Changelog] and this project adheres to [Semantic Versioning].
+The format of this file is based on [Keep a Changelog] and this project
+adheres to [Semantic Versioning].
+
+
+## [Unreleased]
+
+### Fixed
+
+- Fixed unintentional removal of the PID file by the parent process under
+  certain circumstances ([#10], reported by [@dralves])
 
 
 ## [0.5.1] (2018-06-10)
@@ -20,16 +29,16 @@ The format of this file is based on [Keep a Changelog] and this project adheres 
 
 ### Fixed
 
-- Avoid zombie processes (contributed by [@nicoxxl])
+- Avoid zombie processes ([#8], contributed by [@nicoxxl])
 - Fix a race condition regarding the reception of SIGTERM
 - Reduce time between lock file acquisition and call of `run`
-- Handle `sys.exit` calls in `run`
+- Handle `sys.exit` calls in `run` ([#2], reported by [@fedus])
 
 ### Changed
 
 - Use the `pid` module instead of the the deprecated `lockfile` module. As a
   result, `Service.start` now raises `IOError` when it has insufficient
-  permissions to write to `pid_dir`.
+  permissions to write to `pid_dir` ([#5], reported by [@sriharshav])
 - The minimum versions of the package's dependencies are now pinned
 
 ### Removed
@@ -101,5 +110,14 @@ First public release.
 [0.2.0]: https://github.com/torfsen/service/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/torfsen/service/compare/v0.1.0...v0.1.1
 
+[@fedus]: https://github.com/fedus
+[@dralves]: https://github.com/dralves
 [@nicoxxl]: https://github.com/nicoxxl
+[@sriharshav]: https://github.com/sriharshav
+
+[#2]: https://github.com/torfsen/service/issues/2
+[#5]: https://github.com/torfsen/service/issues/5
+[#10]: https://github.com/torfsen/service/issues/10
+
+[#8]: https://github.com/torfsen/service/pull/8
 
