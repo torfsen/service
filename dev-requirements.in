@@ -4,3 +4,4 @@ nose
 psutil
 Sphinx
 tox
+twine
