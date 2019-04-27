@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-# Copyright (c) 2014-2018 Florian Brucker (www.florianbrucker.de)
+# Copyright (c) 2014-2019 Florian Brucker (www.florianbrucker.de)
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -29,6 +29,7 @@ import logging
 import os
 import os.path
 import signal
+import subprocess
 import sys
 import tempfile
 import threading
@@ -420,4 +421,17 @@ class TestService(object):
             sys.exit()
         CallbackService(run).start(block=TIMEOUT)
         assert_not_running()
+
+    def test_parent_does_not_remove_pid_file(self):
+        """
+        Test that the parent does not remote the PID file unintentionally.
+        """
+        # This could happen with older versions of the ``pid`` module,
+        # which installed an ``atexit`` handler that automatically removed
+        # the PID file. That mechanism could be triggered from within the
+        # parent process under certain circumstances. See
+        # https://github.com/torfsen/service/issues/10
+        subprocess.check_call(['python', '-m', 'test.start_waiting_service'])
+        ok(os.path.exists(WaitingService().pid_file._path),
+           'PID file does not exist')
 
