@@ -160,5 +160,5 @@ It is available under the `MIT license <http://opensource.org/licenses/MIT>`_.
 
 Change Log
 ==========
-See the file `CHANGELOG.md <https://github.com/torfsen/service/blob/master/CHANGELOG.md`_.
+See the file `CHANGELOG.md <https://github.com/torfsen/service/blob/master/CHANGELOG.md>`_.
 
