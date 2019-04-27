@@ -1,0 +1,6 @@
+coverage
+mock
+nose
+psutil
+Sphinx
+tox
