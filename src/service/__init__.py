@@ -90,7 +90,10 @@ class _PIDFile(object):
 
     def _make_lock(self):
         directory, filename = os.path.split(self._path)
-        return PidFile(filename, directory, register_term_signal_handler=False)
+        return PidFile(filename,
+                       directory,
+                       register_term_signal_handler=False,
+                       register_atexit=False)
 
     def acquire(self):
         self._make_lock().create()
