@@ -36,7 +36,7 @@ from pid import PidFile
 import setproctitle
 
 
-__version__ = '0.5.2'
+__version__ = '0.6.0'
 
 __all__ = ['find_syslog', 'Service']
 
