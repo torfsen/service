@@ -4,6 +4,14 @@ The format of this file is based on [Keep a Changelog] and this project
 adheres to [Semantic Versioning].
 
 
+## [Unreleased]
+
+### Added
+
+- Support for sending and receiving other signals than SIGTERM
+  ([#14], contributed by [@holgi])
+
+
 ## [0.5.2] (2019-04-27)
 
 ### Fixed
@@ -111,8 +119,9 @@ First public release.
 [0.2.0]: https://github.com/torfsen/service/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/torfsen/service/compare/v0.1.0...v0.1.1
 
-[@fedus]: https://github.com/fedus
 [@dralves]: https://github.com/dralves
+[@fedus]: https://github.com/fedus
+[@holgi]: https://github.com/holgi
 [@nicoxxl]: https://github.com/nicoxxl
 [@sriharshav]: https://github.com/sriharshav
 
@@ -121,4 +130,4 @@ First public release.
 [#10]: https://github.com/torfsen/service/issues/10
 
 [#8]: https://github.com/torfsen/service/pull/8
-
+[#14]: https://github.com/torfsen/service/pull/14
