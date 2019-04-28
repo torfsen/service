@@ -24,10 +24,16 @@
 Tests for the ``service`` module.
 """
 
+from __future__ import (absolute_import, division, print_function,
+                        unicode_literals)
+
 import errno
+import io
+import json
 import logging
 import os
 import os.path
+import shutil
 import signal
 import subprocess
 import sys
@@ -65,6 +71,12 @@ DELAY = 5
 # Timeout for waiting for a service to start/stop. Rather high because
 # on Travis services sometimes take ages to start.
 TIMEOUT = 20
+
+TEMP_DIR = tempfile.mkdtemp()
+
+
+def teardown():
+    shutil.rmtree(TEMP_DIR, ignore_errors=True)
 
 
 def _is_test_deamon_process(process):
@@ -144,17 +156,23 @@ class BasicService(service.Service):
     Sets the service name and uses a temporary directory for PID files
     to avoid the necessity of root privileges.
     """
-    def __init__(self, custom_signals=None):
+    def __init__(self, signals=None):
         super(BasicService, self).__init__(
             NAME,
             pid_dir=PID_DIR,
-            custom_signals=custom_signals
+            signals=signals
         )
         formatter = logging.Formatter('%(created)f: %(message)s')
         handler = logging.FileHandler(LOG_FILE)
         handler.setFormatter(formatter)
         self.logger.handlers[:] = [handler]
         self.logger.setLevel(service.SERVICE_DEBUG)
+        dump_file = tempfile.NamedTemporaryFile(
+            dir=TEMP_DIR,
+            delete=False,
+        )
+        dump_file.close()
+        self.dump_filename = dump_file.name
 
     def start(self, block=False):
         value = super(BasicService, self).start(block=block)
@@ -165,6 +183,33 @@ class BasicService(service.Service):
         value = super(BasicService, self).stop(block=block)
         self._debug('stop(block={}) returns {}'.format(block, value))
         return value
+
+    def load_dump(self):
+        """
+        Load previously dumped data.
+        """
+        with io.open(self.dump_filename, encoding='utf-8') as f:
+            try:
+                return json.load(f)
+            except ValueError:
+                return {}
+
+    def assert_dump(self, **kwargs):
+        """
+        Assert that the dumped data matches the expectations.
+        """
+        data = self.load_dump()
+        eq(data, kwargs)
+
+    def dump(self, key, value):
+        """
+        Dump data.
+        """
+        self._debug('dumping {} = {}'.format(key, value))
+        data = self.load_dump()
+        data[key] = value
+        with open(self.dump_filename, 'w') as f:
+            json.dump(data, f)
 
 
 class WaitingService(BasicService):
@@ -240,7 +285,7 @@ def start(service):
     """
     Start a service and wait until it's running.
     """
-    ok(service.start(block=TIMEOUT))
+    ok(service.start(block=TIMEOUT), 'Service failed to start')
     assert_running()
     return service
 
@@ -249,29 +294,13 @@ class TestService(object):
     """
     Tests for ``service.Service``.
     """
-    def get_log(self):
-        with open(self.logfile.name) as f:
-            return f.read()
-
-    def assert_log_contains(self, text, msg=None):
-        if not msg:
-            msg = 'Log does not contain "%s":\n\n%s' % (text, self.get_log())
-        ok(text in self.get_log(), msg)
-
     def setup(self):
         with open(LOG_FILE, 'a') as f:
             f.write('\n\n{}\n'.format(get_current_case()))
         kill_processes()
-        self.logfile = tempfile.NamedTemporaryFile(delete=False)
-        self.logfile.close()
-        self.handler = logging.FileHandler(self.logfile.name)
 
     def teardown(self):
         kill_processes()
-        try:
-            os.unlink(self.logfile.name)
-        except OSError:
-            pass
 
     def test_start(self):
         """
@@ -380,13 +409,20 @@ class TestService(object):
         """
         Test that exceptions in ``run`` are handled correctly.
         """
+        log_file = tempfile.NamedTemporaryFile(dir=TEMP_DIR, delete=False)
+        log_file.close()
+
         def run(service):
-            service.logger.addHandler(logging.FileHandler(self.logfile.name))
+            time.sleep(DELAY)
+            service.logger.addHandler(logging.FileHandler(log_file.name))
             raise Exception('FOOBAR')
-        CallbackService(run).start(block=TIMEOUT)
+
+        start(CallbackService(run))
+        time.sleep(2 * DELAY)
         assert_not_running()
         ok(not pid_file_exists())
-        self.assert_log_contains('FOOBAR')
+        with open(log_file.name) as f:
+            ok('FOOBAR' in f.read())
 
     def test_files_preserve(self):
         """
@@ -441,9 +477,13 @@ class TestService(object):
         Test that sys.exit is handled correctly.
         """
         def run(service):
+            time.sleep(DELAY)
             import sys
             sys.exit()
-        CallbackService(run).start(block=TIMEOUT)
+
+        start(CallbackService(run))
+        time.sleep(2 * DELAY)
+        # Check that the PID file has been removed correctly
         assert_not_running()
 
     def test_parent_does_not_remove_pid_file(self):
@@ -459,33 +499,54 @@ class TestService(object):
         ok(os.path.exists(WaitingService().pid_file._path),
            'PID file does not exist')
 
-    def test_different_signal_captured(self):
+    def test_signals(self):
         """
-        Test that signals besides SIGTERM can be used
+        Test signal routines.
         """
-        class SignalService(BasicService):
-            def __init__(self):
-                super(SignalService, self).__init__(
-                    custom_signals=[signal.SIGHUP]
-                )
-                self.f = tempfile.NamedTemporaryFile(delete=False)
-                self.f.close()
-                self.logger.addHandler(logging.FileHandler(self.f.name))
-            def run(self):
-                while not self.got_sigterm():
-                    if self.got_signal(signal.SIGHUP):
-                        self.logger.warn('foobar')
-                    time.sleep(1)
+        def run(service):
+            service.dump('got_signal1', service.got_signal(signal.SIGHUP))
+            service.wait_for_signal(signal.SIGHUP)
+            service.dump('got_signal2', service.got_signal(signal.SIGHUP))
+            service.clear_signal(signal.SIGHUP)
+            service.dump('got_signal3', service.got_signal(signal.SIGHUP))
 
-        service = SignalService()
-        start(service)
-        try:
-            service.send_signal(signal.SIGHUP)
-            time.sleep(5)
-            service.stop(block=TIMEOUT)
-            ok(os.path.isfile(service.f.name))
-            with open(service.f.name, 'r') as f:
-                ok('foobar' in f.read())
-        finally:
-            os.unlink(service.f.name)
+        service = start(CallbackService(run, signals=[signal.SIGHUP]))
+        time.sleep(DELAY)
+        service.send_signal(signal.SIGHUP)
+        time.sleep(DELAY)
+        service.assert_dump(
+            got_signal1=False,
+            got_signal2=True,
+            got_signal3=False,
+        )
+
+    @raises(ValueError)
+    def test_send_signal_not_enabled(self):
+        """
+        Test sending a signal that hasn't been enabled.
+        """
+        start(WaitingService()).send_signal(signal.SIGHUP)
+
+    def test_use_signal_not_enabled(self):
+        """
+        Test using a signal that hasn't been enabled.
+        """
+        method_names = [
+            'clear_signal',
+            'got_signal',
+            'wait_for_signal',
+        ]
+
+        def run(service):
+            time.sleep(DELAY)
+            for method_name in method_names:
+                method = getattr(service, method_name)
+                try:
+                    method(signal.SIGHUP)
+                except ValueError:
+                    service.dump(method_name, True)
+
+        service = start(CallbackService(run))
+        time.sleep(2 * DELAY)
+        service.assert_dump(**{name: True for name in method_names})
 

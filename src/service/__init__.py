@@ -184,7 +184,7 @@ class Service(object):
         attached to :py:attr:`logger` are automatically preserved.
     """
 
-    def __init__(self, name, pid_dir='/var/run', custom_signals=None):
+    def __init__(self, name, pid_dir='/var/run', signals=None):
         """
         Constructor.
 
@@ -194,25 +194,20 @@ class Service(object):
 
         ``pid_dir`` is the directory in which the PID file is stored.
 
-        ``custom_signals`` list of operating signals, that should be
-        available additionally to the standard SIGTERM signal.
+        ``signals`` list of operating signals, that should be available
+        for use with :py:meth:`.send_signal`, :py:meth:`.got_signal`,
+        :py:meth:`.wait_for_signal`, and :py:meth:`.check_signal`. Note
+        that SIGTERM is always supported, and that SIGTTIN, SIGTTOU, and
+        SIGTSTP are never supported.
         """
         self.name = name
         self.pid_file = _PIDFile(os.path.join(pid_dir, name + '.pid'))
-        # handlers for signals will be passed a integer value representing the
-        # signal. Pyhton 3 defines signals as ``enum.Enum`` objects, but the
-        # integer value of the enum must be stored to retrieve the event later.
-        self.signal_events = {
-            int(signal.SIGTERM): threading.Event()
-        }
-        if custom_signals is not None:
-            for sig_symbol in custom_signals:
-                self.signal_events[int(sig_symbol)] = threading.Event()
+        self._signal_events = {int(s): threading.Event()
+                               for s in ((signals or []) + [signal.SIGTERM])}
         self.logger = logging.getLogger(name)
         if not self.logger.handlers:
             self.logger.addHandler(logging.NullHandler())
         self.files_preserve = []
-
 
     def _debug(self, msg):
         """
@@ -269,82 +264,86 @@ class Service(object):
         """
         return self.pid_file.read_pid()
 
-    def send_signal(self, sig_symbol):
+    def _get_signal_event(self, s):
+        '''
+        Get the event for a signal.
+
+        Checks if the signal has been enabled and raises a
+        ``ValueError`` if not.
+        '''
+        try:
+            return self._signal_events[int(s)]
+        except KeyError:
+            raise ValueError('Signal {} has not been enabled'.format(s))
+
+    def send_signal(self, s):
         """
-        Sends an preconfigured operating system signal to the daemon process.
+        Send a signal to the daemon process.
 
-        Returns ``True`` if the signal is configured, else ``False``
+        The signal must have been enabled using the ``signals``
+        parameter of :py:meth:`Service.__init__`. Otherwise, a
+        ``ValueError`` is raised.
         """
-        if int(sig_symbol) in self.signal_events:
-            pid = self.get_pid()
-            if not pid:
-                raise ValueError('Daemon is not running.')
-            os.kill(pid, sig_symbol)
-            return True
-        else:
-            return False
+        self._get_signal_event(s)  # Check if signal has been enabled
+        pid = self.get_pid()
+        if not pid:
+            raise ValueError('Daemon is not running.')
+        os.kill(pid, s)
 
-
-    def got_signal(self, sig_symbol, clear=False):
+    def got_signal(self, s):
         """
-        Check if an operating system signal was received.
+        Check if a signal was received.
 
-        Returns ``True`` if the daemon process has received the
-        signal (for example because :py:meth:`stop` was called).
+        The signal must have been enabled using the ``signals``
+        parameter of :py:meth:`Service.__init__`. Otherwise, a
+        ``ValueError`` is raised.
 
-        If ``clear`` is True, the signal will be cleared after retrieving the
-        current state. This is useful for "one-time-operations" like reloading
-        a config file.
+        Returns ``True`` if the daemon process has received the signal
+        (for example because :py:meth:`stop` was called in case of
+        SIGTERM, or because :py:meth:`send_signal` was used) and
+        ``False`` otherwise.
 
         .. note::
-            This function always returns ``False`` when it is not called
-            from the daemon process or if the signal is not configured
+            This function always returns ``False`` for enabled signals
+            when it is not called from the daemon process.
         """
-        sig_num = int(sig_symbol)
-        if sig_num in self.signal_events:
-            state = self.signal_events[sig_num].is_set()
-            if clear:
-                self.clear_signal(sig_num)
-            return state
-        else:
-            return False
+        return self._get_signal_event(s).is_set()
 
-    def clear_signal(self, sig_symbol):
+    def clear_signal(self, s):
         """
-        Clears an operating system signal.
+        Clears the state of a signal.
 
-        Returns ``True`` signal is configured, else ``False``
+        The signal must have been enabled using the ``signals``
+        parameter of :py:meth:`Service.__init__`. Otherwise, a
+        ``ValueError`` is raised.
         """
-        sig_num = int(sig_symbol)
-        if sig_num in self.signal_events:
-            self.signal_events[sig_num].clear()
-            return True
-        else:
-            return False
+        self._get_signal_event(s).clear()
 
-    def wait_for_signal(self, sig_symbol, timeout=None):
+    def wait_for_signal(self, s, timeout=None):
         """
-        Wait until an operating system signal has been received.
+        Wait until a signal has been received.
+
+        The signal must have been enabled using the ``signals``
+        parameter of :py:meth:`Service.__init__`. Otherwise, a
+        ``ValueError`` is raised.
 
         This function blocks until the daemon process has received the
-        signal (for example because :py:meth:`stop` was called).
+        signal (for example because :py:meth:`stop` was called in case
+        of SIGTERM, or because :py:meth:`send_signal` was used).
 
         If ``timeout`` is given and not ``None`` it specifies a timeout
         for the block.
 
         The return value is ``True`` if the signal was received and
         ``False`` otherwise (the latter occurs if a timeout was given
-        and the signal was not received, or if the signal is not configured).
+        and the signal was not received).
 
         .. warning::
             This function blocks indefinitely (or until the given
-            timeout) when it is not called from the daemon process.
+            timeout) for enabled signals when it is not called from the
+            daemon process.
         """
-        sig_num = int(sig_symbol)
-        if sig_num in self.signal_events:
-            return self.signal_events[sig_num].wait(timeout)
-        else:
-            return False
+        return self._get_signal_event(s).wait(timeout)
 
     def got_sigterm(self):
         """
@@ -481,10 +480,9 @@ class Service(object):
         # Daemon process continues here
         self._debug('Daemon has detached')
 
-        def on_signal(signum, frame):
-            self._debug('Received %s signal' % signum)
-            self._debug(type(signum))
-            self.signal_events[int(signum)].set()
+        def on_signal(s, frame):
+            self._debug('Received signal {}'.format(s))
+            self._signal_events[int(s)].set()
 
         def runner():
             try:
@@ -512,15 +510,12 @@ class Service(object):
             self._debug('Process title has been set')
             files_preserve = (self.files_preserve +
                               self._get_logger_file_handles())
-            signal_map = dict()
-            for signum in self.signal_events:
-                signal_map[signum] = on_signal
-            dont_capture = {
+            signal_map = {s: on_signal for s in self._signal_events}
+            signal_map.update({
                     signal.SIGTTIN: None,
                     signal.SIGTTOU: None,
                     signal.SIGTSTP: None,
-            }
-            signal_map.update(dont_capture)
+            })
             with DaemonContext(
                     detach_process=False,
                     signal_map=signal_map,
