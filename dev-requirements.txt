@@ -6,13 +6,12 @@
 #
 alabaster==0.7.12         # via sphinx
 babel==2.6.0              # via sphinx
-bleach==3.1.0             # via readme-renderer
+bleach==3.1.1             # via readme-renderer
 certifi==2019.3.9         # via requests
 chardet==3.0.4            # via requests
 coverage==4.5.3
 docutils==0.14            # via readme-renderer, sphinx
 filelock==3.0.10          # via tox
-funcsigs==1.0.2           # via mock
 idna==2.8                 # via requests
 imagesize==1.1.0          # via sphinx
 jinja2==2.10.1            # via sphinx
@@ -39,7 +38,6 @@ toml==0.10.0              # via tox
 tox==3.9.0
 tqdm==4.31.1              # via twine
 twine==1.13.0
-typing==3.6.6             # via sphinx
 urllib3==1.24.2           # via requests
 virtualenv==16.5.0        # via tox
 webencodings==0.5.1       # via bleach
